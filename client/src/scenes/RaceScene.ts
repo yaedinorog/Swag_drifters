@@ -17,6 +17,7 @@ export class RaceScene extends Phaser.Scene {
     left: Phaser.Input.Keyboard.Key[];
     right: Phaser.Input.Keyboard.Key[];
     handbrake: Phaser.Input.Keyboard.Key[];
+    restart: Phaser.Input.Keyboard.Key;
   };
   private carState!: CarState;
   private hud!: Hud;
@@ -47,6 +48,7 @@ export class RaceScene extends Phaser.Scene {
     this.car = this.add.sprite(this.carState.position.x, this.carState.position.y, "car");
     this.car.setOrigin(0.5);
     this.car.setDisplaySize(36, 50);
+    this.car.setDepth(10);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
 
     this.hud = new Hud(this);
@@ -73,11 +75,17 @@ export class RaceScene extends Phaser.Scene {
         keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
         keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
       ],
-      handbrake: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)]
+      handbrake: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)],
+      restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     };
   }
 
   update(_time: number, deltaMs: number): void {
+    if (Phaser.Input.Keyboard.JustDown(this.controls.restart)) {
+      this.scene.restart();
+      return;
+    }
+
     this.elapsedMs += deltaMs;
     const dt = Math.min(deltaMs / 1000, 1 / 20);
     const pressed = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((key) => key.isDown);
@@ -186,7 +194,7 @@ export class RaceScene extends Phaser.Scene {
         .setRotation(this.carState.heading)
         .setScale(2)
         .setAlpha(0.45)
-        .setDepth(5)
+        .setDepth(1)
         .setTint(0x1f1f1f);
       this.skidMarks.push(mark);
     });

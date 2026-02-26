@@ -6,7 +6,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("car", "/car.png");
+    this.load.image("car", `${import.meta.env.BASE_URL}car.png`);
   }
 
   create(): void {

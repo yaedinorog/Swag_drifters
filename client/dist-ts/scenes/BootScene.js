@@ -4,7 +4,7 @@ export class BootScene extends Phaser.Scene {
         super("boot");
     }
     preload() {
-        this.load.image("car", "/car.png");
+        this.load.image("car", `${import.meta.env.BASE_URL}car.png`);
     }
     create() {
         const tire = this.make.graphics({ x: 0, y: 0 }, false);
