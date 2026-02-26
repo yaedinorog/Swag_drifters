@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
 import { carHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
+import { buildTrackGeometry } from "../core/track/geometry";
 import { LapTracker } from "../core/track/lapTracker";
 import { getDefaultTrackId, getTrackById, isOnTrack } from "../core/track/trackStore";
 import { sessionState } from "../state/session";
@@ -114,13 +115,18 @@ export class RaceScene extends Phaser.Scene {
         for (let x = 0; x < GAME_WIDTH; x += 64) {
             gfx.fillRect(x, 0, 32, GAME_HEIGHT);
         }
+        const borderGeometry = buildTrackGeometry({
+            ...this.activeTrack.asset,
+            roadWidth: this.activeTrack.asset.roadWidth + RaceScene.ROAD_BORDER_PX * 2
+        });
+        gfx.fillStyle(borderColor, 1);
+        borderGeometry.quads.forEach((quad) => {
+            gfx.fillPoints(quad, true);
+        });
         gfx.fillStyle(asphaltColor, 1);
         this.activeTrack.geometry.quads.forEach((quad) => {
             gfx.fillPoints(quad, true);
         });
-        gfx.lineStyle(10, borderColor, 1);
-        gfx.strokePoints(this.activeTrack.geometry.leftEdge, true);
-        gfx.strokePoints(this.activeTrack.geometry.rightEdge, true);
         gfx.lineStyle(3, 0xf8fafc, 0.35);
         gfx.strokePoints(this.activeTrack.geometry.sampledCenterline, true);
         this.activeTrack.asset.checkpoints.forEach((checkpoint, index) => {
@@ -163,3 +169,4 @@ export class RaceScene extends Phaser.Scene {
     }
 }
 RaceScene.CAR_SPRITE_HEADING_OFFSET = -Math.PI / 2;
+RaceScene.ROAD_BORDER_PX = 10;

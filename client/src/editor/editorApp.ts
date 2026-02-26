@@ -13,6 +13,9 @@ interface EditorState {
   mode: EditorMode;
   draggingCenterPoint: boolean;
   draggingCheckpointHandle: "a" | "b" | null;
+  draggingCheckpointLine: boolean;
+  checkpointLineDragOrigin: Vector2 | null;
+  checkpointLineOriginal: { a: Vector2; b: Vector2 } | null;
   draftCheckpointStart: Vector2 | null;
 }
 
@@ -63,6 +66,18 @@ function distance(a: Vector2, b: Vector2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function distanceToSegment(point: Vector2, a: Vector2, b: Vector2): number {
+  const abX = b.x - a.x;
+  const abY = b.y - a.y;
+  const abLenSq = abX * abX + abY * abY;
+  if (abLenSq < 1e-6) {
+    return distance(point, a);
+  }
+  const t = Math.max(0, Math.min(1, ((point.x - a.x) * abX + (point.y - a.y) * abY) / abLenSq));
+  const proj = { x: a.x + abX * t, y: a.y + abY * t };
+  return distance(point, proj);
+}
+
 function normalizeBase(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 }
@@ -76,6 +91,9 @@ export function mountEditorApp(root: HTMLElement): void {
     mode: "centerline",
     draggingCenterPoint: false,
     draggingCheckpointHandle: null,
+    draggingCheckpointLine: false,
+    checkpointLineDragOrigin: null,
+    checkpointLineOriginal: null,
     draftCheckpointStart: null
   };
 
@@ -246,9 +264,13 @@ export function mountEditorApp(root: HTMLElement): void {
 
     try {
       const geometry = buildTrackGeometry(track);
+      const borderGeometry = buildTrackGeometry({
+        ...track,
+        roadWidth: track.roadWidth + 20
+      });
       displayCenterline = geometry.sampledCenterline;
-      ctx.fillStyle = track.style.asphaltColor;
-      geometry.quads.forEach((quad) => {
+      ctx.fillStyle = track.style.borderColor;
+      borderGeometry.quads.forEach((quad) => {
         ctx.beginPath();
         ctx.moveTo(quad[0].x, quad[0].y);
         for (let i = 1; i < quad.length; i += 1) {
@@ -258,18 +280,15 @@ export function mountEditorApp(root: HTMLElement): void {
         ctx.fill();
       });
 
-      ctx.strokeStyle = track.style.borderColor;
-      ctx.lineWidth = 6;
-      [geometry.leftEdge, geometry.rightEdge].forEach((edge) => {
+      ctx.fillStyle = track.style.asphaltColor;
+      geometry.quads.forEach((quad) => {
         ctx.beginPath();
-        ctx.moveTo(edge[0].x, edge[0].y);
-        edge.forEach((point, index) => {
-          if (index > 0) {
-            ctx.lineTo(point.x, point.y);
-          }
-        });
+        ctx.moveTo(quad[0].x, quad[0].y);
+        for (let i = 1; i < quad.length; i += 1) {
+          ctx.lineTo(quad[i].x, quad[i].y);
+        }
         ctx.closePath();
-        ctx.stroke();
+        ctx.fill();
       });
     } catch {
       // keep showing editing helpers even with invalid geometry
@@ -396,6 +415,16 @@ export function mountEditorApp(root: HTMLElement): void {
       return;
     }
 
+    if (distanceToSegment(point, checkpoint.a, checkpoint.b) <= 10) {
+      state.draggingCheckpointLine = true;
+      state.checkpointLineDragOrigin = point;
+      state.checkpointLineOriginal = {
+        a: { ...checkpoint.a },
+        b: { ...checkpoint.b }
+      };
+      return;
+    }
+
     if (!state.draftCheckpointStart) {
       state.draftCheckpointStart = point;
       draw();
@@ -427,12 +456,31 @@ export function mountEditorApp(root: HTMLElement): void {
       const checkpoint = track.checkpoints[state.selectedCheckpointIndex];
       checkpoint[state.draggingCheckpointHandle] = point;
       refreshForm();
+      return;
+    }
+
+    if (state.mode === "checkpoint" && state.draggingCheckpointLine && state.checkpointLineDragOrigin && state.checkpointLineOriginal) {
+      const checkpoint = track.checkpoints[state.selectedCheckpointIndex];
+      const dx = point.x - state.checkpointLineDragOrigin.x;
+      const dy = point.y - state.checkpointLineDragOrigin.y;
+      checkpoint.a = {
+        x: state.checkpointLineOriginal.a.x + dx,
+        y: state.checkpointLineOriginal.a.y + dy
+      };
+      checkpoint.b = {
+        x: state.checkpointLineOriginal.b.x + dx,
+        y: state.checkpointLineOriginal.b.y + dy
+      };
+      refreshForm();
     }
   });
 
   canvas.addEventListener("mouseup", () => {
     state.draggingCenterPoint = false;
     state.draggingCheckpointHandle = null;
+    state.draggingCheckpointLine = false;
+    state.checkpointLineDragOrigin = null;
+    state.checkpointLineOriginal = null;
   });
 
   canvas.addEventListener("dblclick", (event) => {
@@ -456,6 +504,9 @@ export function mountEditorApp(root: HTMLElement): void {
   editMode.addEventListener("change", () => {
     state.mode = editMode.value as EditorMode;
     state.draftCheckpointStart = null;
+    state.draggingCheckpointLine = false;
+    state.checkpointLineDragOrigin = null;
+    state.checkpointLineOriginal = null;
     refreshForm();
   });
 

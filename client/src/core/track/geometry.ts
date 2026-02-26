@@ -40,23 +40,27 @@ function pointInPolygon(point: Vector2, polygon: Vector2[]): boolean {
   return inside;
 }
 
-function catmullRom(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: number): Vector2 {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return {
-    x:
-      0.5 *
-      ((2 * p1.x) +
-        (-p0.x + p2.x) * t +
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-    y:
-      0.5 *
-      ((2 * p1.y) +
-        (-p0.y + p2.y) * t +
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
-  };
+function distancePow(a: Vector2, b: Vector2): number {
+  return Math.pow(Math.hypot(b.x - a.x, b.y - a.y), 0.5);
+}
+
+function lerpPoint(a: Vector2, b: Vector2, t: number): Vector2 {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+function catmullRomCentripetal(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: number): Vector2 {
+  const t0 = 0;
+  const t1 = t0 + Math.max(1e-4, distancePow(p0, p1));
+  const t2 = t1 + Math.max(1e-4, distancePow(p1, p2));
+  const t3 = t2 + Math.max(1e-4, distancePow(p2, p3));
+  const tt = t1 + (t2 - t1) * t;
+
+  const a1 = lerpPoint(p0, p1, (tt - t0) / (t1 - t0));
+  const a2 = lerpPoint(p1, p2, (tt - t1) / (t2 - t1));
+  const a3 = lerpPoint(p2, p3, (tt - t2) / (t3 - t2));
+  const b1 = lerpPoint(a1, a2, (tt - t0) / (t2 - t0));
+  const b2 = lerpPoint(a2, a3, (tt - t1) / (t3 - t1));
+  return lerpPoint(b1, b2, (tt - t1) / (t2 - t1));
 }
 
 function sampleClosedSpline(points: Vector2[]): Vector2[] {
@@ -73,7 +77,7 @@ function sampleClosedSpline(points: Vector2[]): Vector2[] {
 
     for (let j = 0; j < subdivisions; j += 1) {
       const t = j / subdivisions;
-      sampled.push(catmullRom(p0, p1, p2, p3, t));
+      sampled.push(catmullRomCentripetal(p0, p1, p2, p3, t));
     }
   }
   return sampled;
@@ -96,6 +100,58 @@ function getAveragedNormal(points: Vector2[], index: number): Vector2 {
   return avg;
 }
 
+function lineIntersection(p1: Vector2, d1: Vector2, p2: Vector2, d2: Vector2): Vector2 | null {
+  const det = d1.x * d2.y - d1.y * d2.x;
+  if (Math.abs(det) < 1e-6) {
+    return null;
+  }
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const t = (dx * d2.y - dy * d2.x) / det;
+  return { x: p1.x + d1.x * t, y: p1.y + d1.y * t };
+}
+
+function offsetJoinPoint(points: Vector2[], index: number, halfWidth: number, side: 1 | -1): Vector2 {
+  const n = points.length;
+  const prev = points[(index - 1 + n) % n];
+  const curr = points[index];
+  const next = points[(index + 1) % n];
+
+  const dirPrev = normalize(curr.x - prev.x, curr.y - prev.y);
+  const dirNext = normalize(next.x - curr.x, next.y - curr.y);
+
+  const nPrev = { x: -dirPrev.y * side, y: dirPrev.x * side };
+  const nNext = { x: -dirNext.y * side, y: dirNext.x * side };
+
+  const offsetPrev = { x: curr.x + nPrev.x * halfWidth, y: curr.y + nPrev.y * halfWidth };
+  const offsetNext = { x: curr.x + nNext.x * halfWidth, y: curr.y + nNext.y * halfWidth };
+  const intersection = lineIntersection(offsetPrev, dirPrev, offsetNext, dirNext);
+
+  const fallbackNormal = getAveragedNormal(points, index);
+  const fallback = {
+    x: curr.x + fallbackNormal.x * halfWidth * side,
+    y: curr.y + fallbackNormal.y * halfWidth * side
+  };
+
+  if (!intersection) {
+    return fallback;
+  }
+
+  const miterLength = Math.hypot(intersection.x - curr.x, intersection.y - curr.y);
+  const maxMiter = halfWidth * 2.2;
+  if (miterLength > maxMiter) {
+    return fallback;
+  }
+
+  const blendNormal = { x: nPrev.x + nNext.x, y: nPrev.y + nNext.y };
+  const sideCheck = (intersection.x - curr.x) * blendNormal.x + (intersection.y - curr.y) * blendNormal.y;
+  if (sideCheck < 0) {
+    return fallback;
+  }
+
+  return intersection;
+}
+
 export function buildTrackGeometry(asset: TrackAssetV1): TrackGeometry {
   const baseCenterline = getClosedCenterline(asset.centerline);
   const centerline = sampleClosedSpline(baseCenterline);
@@ -104,10 +160,8 @@ export function buildTrackGeometry(asset: TrackAssetV1): TrackGeometry {
   const leftEdge: Vector2[] = [];
   const rightEdge: Vector2[] = [];
   for (let i = 0; i < centerline.length; i += 1) {
-    const p = centerline[i];
-    const normal = getAveragedNormal(centerline, i);
-    leftEdge.push({ x: p.x + normal.x * halfWidth, y: p.y + normal.y * halfWidth });
-    rightEdge.push({ x: p.x - normal.x * halfWidth, y: p.y - normal.y * halfWidth });
+    leftEdge.push(offsetJoinPoint(centerline, i, halfWidth, 1));
+    rightEdge.push(offsetJoinPoint(centerline, i, halfWidth, -1));
   }
 
   const quads: Quad[] = [];

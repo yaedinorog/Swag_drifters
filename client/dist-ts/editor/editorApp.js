@@ -43,6 +43,17 @@ function downloadText(filename, content) {
 function distance(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);
 }
+function distanceToSegment(point, a, b) {
+    const abX = b.x - a.x;
+    const abY = b.y - a.y;
+    const abLenSq = abX * abX + abY * abY;
+    if (abLenSq < 1e-6) {
+        return distance(point, a);
+    }
+    const t = Math.max(0, Math.min(1, ((point.x - a.x) * abX + (point.y - a.y) * abY) / abLenSq));
+    const proj = { x: a.x + abX * t, y: a.y + abY * t };
+    return distance(point, proj);
+}
 function normalizeBase(baseUrl) {
     return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 }
@@ -55,6 +66,9 @@ export function mountEditorApp(root) {
         mode: "centerline",
         draggingCenterPoint: false,
         draggingCheckpointHandle: null,
+        draggingCheckpointLine: false,
+        checkpointLineDragOrigin: null,
+        checkpointLineOriginal: null,
         draftCheckpointStart: null
     };
     root.innerHTML = `
@@ -214,7 +228,21 @@ export function mountEditorApp(root) {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         try {
             const geometry = buildTrackGeometry(track);
+            const borderGeometry = buildTrackGeometry({
+                ...track,
+                roadWidth: track.roadWidth + 20
+            });
             displayCenterline = geometry.sampledCenterline;
+            ctx.fillStyle = track.style.borderColor;
+            borderGeometry.quads.forEach((quad) => {
+                ctx.beginPath();
+                ctx.moveTo(quad[0].x, quad[0].y);
+                for (let i = 1; i < quad.length; i += 1) {
+                    ctx.lineTo(quad[i].x, quad[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+            });
             ctx.fillStyle = track.style.asphaltColor;
             geometry.quads.forEach((quad) => {
                 ctx.beginPath();
@@ -224,19 +252,6 @@ export function mountEditorApp(root) {
                 }
                 ctx.closePath();
                 ctx.fill();
-            });
-            ctx.strokeStyle = track.style.borderColor;
-            ctx.lineWidth = 6;
-            [geometry.leftEdge, geometry.rightEdge].forEach((edge) => {
-                ctx.beginPath();
-                ctx.moveTo(edge[0].x, edge[0].y);
-                edge.forEach((point, index) => {
-                    if (index > 0) {
-                        ctx.lineTo(point.x, point.y);
-                    }
-                });
-                ctx.closePath();
-                ctx.stroke();
             });
         }
         catch {
@@ -350,6 +365,15 @@ export function mountEditorApp(root) {
             state.draggingCheckpointHandle = handle;
             return;
         }
+        if (distanceToSegment(point, checkpoint.a, checkpoint.b) <= 10) {
+            state.draggingCheckpointLine = true;
+            state.checkpointLineDragOrigin = point;
+            state.checkpointLineOriginal = {
+                a: { ...checkpoint.a },
+                b: { ...checkpoint.b }
+            };
+            return;
+        }
         if (!state.draftCheckpointStart) {
             state.draftCheckpointStart = point;
             draw();
@@ -377,11 +401,29 @@ export function mountEditorApp(root) {
             const checkpoint = track.checkpoints[state.selectedCheckpointIndex];
             checkpoint[state.draggingCheckpointHandle] = point;
             refreshForm();
+            return;
+        }
+        if (state.mode === "checkpoint" && state.draggingCheckpointLine && state.checkpointLineDragOrigin && state.checkpointLineOriginal) {
+            const checkpoint = track.checkpoints[state.selectedCheckpointIndex];
+            const dx = point.x - state.checkpointLineDragOrigin.x;
+            const dy = point.y - state.checkpointLineDragOrigin.y;
+            checkpoint.a = {
+                x: state.checkpointLineOriginal.a.x + dx,
+                y: state.checkpointLineOriginal.a.y + dy
+            };
+            checkpoint.b = {
+                x: state.checkpointLineOriginal.b.x + dx,
+                y: state.checkpointLineOriginal.b.y + dy
+            };
+            refreshForm();
         }
     });
     canvas.addEventListener("mouseup", () => {
         state.draggingCenterPoint = false;
         state.draggingCheckpointHandle = null;
+        state.draggingCheckpointLine = false;
+        state.checkpointLineDragOrigin = null;
+        state.checkpointLineOriginal = null;
     });
     canvas.addEventListener("dblclick", (event) => {
         if (state.mode !== "centerline") {
@@ -402,6 +444,9 @@ export function mountEditorApp(root) {
     editMode.addEventListener("change", () => {
         state.mode = editMode.value;
         state.draftCheckpointStart = null;
+        state.draggingCheckpointLine = false;
+        state.checkpointLineDragOrigin = null;
+        state.checkpointLineOriginal = null;
         refreshForm();
     });
     trackId.addEventListener("input", () => {

@@ -2,6 +2,7 @@
 import { GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
 import { carHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
+import { buildTrackGeometry } from "../core/track/geometry";
 import { LapTracker } from "../core/track/lapTracker";
 import { getDefaultTrackId, getTrackById, isOnTrack } from "../core/track/trackStore";
 import type { RuntimeTrack } from "../core/track/types";
@@ -11,6 +12,7 @@ import { Hud } from "../ui/hud";
 
 export class RaceScene extends Phaser.Scene {
   private static readonly CAR_SPRITE_HEADING_OFFSET = -Math.PI / 2;
+  private static readonly ROAD_BORDER_PX = 10;
   private car!: Phaser.GameObjects.Sprite;
   private controls!: {
     throttle: Phaser.Input.Keyboard.Key[];
@@ -158,14 +160,19 @@ export class RaceScene extends Phaser.Scene {
       gfx.fillRect(x, 0, 32, GAME_HEIGHT);
     }
 
+    const borderGeometry = buildTrackGeometry({
+      ...this.activeTrack.asset,
+      roadWidth: this.activeTrack.asset.roadWidth + RaceScene.ROAD_BORDER_PX * 2
+    });
+    gfx.fillStyle(borderColor, 1);
+    borderGeometry.quads.forEach((quad) => {
+      gfx.fillPoints(quad, true);
+    });
+
     gfx.fillStyle(asphaltColor, 1);
     this.activeTrack.geometry.quads.forEach((quad) => {
       gfx.fillPoints(quad, true);
     });
-
-    gfx.lineStyle(10, borderColor, 1);
-    gfx.strokePoints(this.activeTrack.geometry.leftEdge, true);
-    gfx.strokePoints(this.activeTrack.geometry.rightEdge, true);
 
     gfx.lineStyle(3, 0xf8fafc, 0.35);
     gfx.strokePoints(this.activeTrack.geometry.sampledCenterline, true);

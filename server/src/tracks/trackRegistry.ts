@@ -43,7 +43,8 @@ function resolveDefaultManifestPath(): string {
 
 export function loadTrackRegistry(manifestPath = resolveDefaultManifestPath()): TrackRegistry {
   const raw = fs.readFileSync(manifestPath, "utf8");
-  const parsed = JSON.parse(raw) as TrackManifest;
+  const sanitized = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  const parsed = JSON.parse(sanitized) as TrackManifest;
 
   if (parsed.version !== 1 || !Array.isArray(parsed.tracks)) {
     throw new Error("Invalid tracks manifest format.");
@@ -60,6 +61,6 @@ export function loadTrackRegistry(manifestPath = resolveDefaultManifestPath()): 
     trackIds.add(track.id);
   });
 
-  const checksum = crypto.createHash("sha256").update(raw).digest("hex");
+  const checksum = crypto.createHash("sha256").update(sanitized).digest("hex");
   return new StaticTrackRegistry(trackIds, checksum);
 }
