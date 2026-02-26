@@ -1,5 +1,5 @@
 1. Level select
-2. Pause menu
+2. Pause menu/ Level reset on key R
 3. New tracks
 4. New machines (Different speeds and maneuverability)
 5. Camera tracking
