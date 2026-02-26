@@ -1,9 +1,10 @@
-import Phaser from "phaser";
-import { GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS, TRACK_ID } from "../core/constants";
+﻿import Phaser from "phaser";
+import { GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
 import { carHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
 import { LapTracker } from "../core/track/lapTracker";
-import { isOnTrack, track01 } from "../core/track/trackConfig";
+import { getDefaultTrackId, getTrackById, isOnTrack } from "../core/track/trackStore";
+import type { RuntimeTrack } from "../core/track/types";
 import type { CarState, InputState } from "../core/types";
 import { sessionState } from "../state/session";
 import { Hud } from "../ui/hud";
@@ -22,7 +23,9 @@ export class RaceScene extends Phaser.Scene {
   private carState!: CarState;
   private hud!: Hud;
   private lapTracker!: LapTracker;
+  private activeTrack!: RuntimeTrack;
   private elapsedMs = 0;
+  private timerStarted = false;
   private driftMarkCooldownMs = 0;
   private skidMarks: Phaser.GameObjects.Image[] = [];
 
@@ -31,17 +34,21 @@ export class RaceScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor("#1f2937");
+    this.activeTrack =
+      getTrackById(sessionState.selectedTrackId) ?? getTrackById(getDefaultTrackId())!;
+
+    this.cameras.main.setBackgroundColor(this.activeTrack.asset.style.grassColor);
     this.elapsedMs = 0;
+    this.timerStarted = false;
     this.driftMarkCooldownMs = 0;
     this.skidMarks.forEach((mark) => mark.destroy());
     this.skidMarks = [];
     this.drawTrack();
 
     this.carState = {
-      position: { x: track01.spawn.x, y: track01.spawn.y },
+      position: { x: this.activeTrack.asset.spawn.x, y: this.activeTrack.asset.spawn.y },
       velocity: { x: 0, y: 0 },
-      heading: track01.spawn.heading,
+      heading: this.activeTrack.asset.spawn.heading,
       angularVelocity: 0
     };
 
@@ -52,7 +59,7 @@ export class RaceScene extends Phaser.Scene {
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
 
     this.hud = new Hud(this);
-    this.lapTracker = new LapTracker(track01, 0, TOTAL_LAPS);
+    this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
 
     const keyboard = this.input.keyboard;
     if (!keyboard) {
@@ -86,7 +93,7 @@ export class RaceScene extends Phaser.Scene {
       return;
     }
 
-    this.elapsedMs += deltaMs;
+    const previousPosition = { ...this.carState.position };
     const dt = Math.min(deltaMs / 1000, 1 / 20);
     const pressed = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((key) => key.isDown);
     const input: InputState = {
@@ -96,20 +103,23 @@ export class RaceScene extends Phaser.Scene {
       handbrake: pressed(this.controls.handbrake)
     };
 
-    const onTrack = isOnTrack(this.carState.position.x, this.carState.position.y, track01);
+    const onTrack = isOnTrack(this.carState.position.x, this.carState.position.y, this.activeTrack);
     const driftStep = stepDriftModel(this.carState, input, dt, carHandling, !onTrack);
     this.carState = driftStep.state;
+
+    if (!this.timerStarted && driftStep.speed > 2) {
+      this.timerStarted = true;
+    }
+    if (this.timerStarted) {
+      this.elapsedMs += deltaMs;
+    }
 
     this.car.setPosition(this.carState.position.x, this.carState.position.y);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
 
     this.updateDriftFx(driftStep.isDrifting, deltaMs);
 
-    const lapUpdate = this.lapTracker.update(
-      this.carState.position.x,
-      this.carState.position.y,
-      this.elapsedMs
-    );
+    const lapUpdate = this.lapTracker.update(previousPosition, this.carState.position, this.elapsedMs);
 
     const elapsed = Math.round(this.elapsedMs);
     this.hud.update(
@@ -124,53 +134,50 @@ export class RaceScene extends Phaser.Scene {
       sessionState.result = {
         finalTimeMs: elapsed,
         bestLapMs: Math.round(lapUpdate.state.bestLapMs),
-        trackId: TRACK_ID
+        trackId: this.activeTrack.asset.id
       };
       this.scene.start("result");
     }
   }
 
+  private colorToNumber(hexColor: string): number {
+    return Number.parseInt(hexColor.replace("#", ""), 16);
+  }
+
   private drawTrack(): void {
     const gfx = this.add.graphics();
-    gfx.fillStyle(0x7adcb6, 1);
+    const grassColor = this.colorToNumber(this.activeTrack.asset.style.grassColor);
+    const asphaltColor = this.colorToNumber(this.activeTrack.asset.style.asphaltColor);
+    const borderColor = this.colorToNumber(this.activeTrack.asset.style.borderColor);
+
+    gfx.fillStyle(grassColor, 1);
     gfx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    gfx.fillStyle(0x70cda9, 0.35);
+    gfx.fillStyle(0x70cda9, 0.28);
     for (let x = 0; x < GAME_WIDTH; x += 64) {
       gfx.fillRect(x, 0, 32, GAME_HEIGHT);
     }
 
-    gfx.fillStyle(0x2f3138, 1);
-    gfx.fillRect(track01.outer.x, track01.outer.y, track01.outer.width, track01.outer.height);
-    gfx.fillStyle(0x7adcb6, 1);
-    gfx.fillRect(track01.inner.x, track01.inner.y, track01.inner.width, track01.inner.height);
+    gfx.fillStyle(asphaltColor, 1);
+    this.activeTrack.geometry.quads.forEach((quad) => {
+      gfx.fillPoints(quad, true);
+    });
 
-    gfx.lineStyle(6, 0xeeeeee, 1);
-    gfx.strokeRect(track01.outer.x, track01.outer.y, track01.outer.width, track01.outer.height);
-    gfx.strokeRect(track01.inner.x, track01.inner.y, track01.inner.width, track01.inner.height);
+    gfx.lineStyle(10, borderColor, 1);
+    gfx.strokePoints(this.activeTrack.geometry.leftEdge, true);
+    gfx.strokePoints(this.activeTrack.geometry.rightEdge, true);
 
-    const midRect = {
-      x: (track01.outer.x + track01.inner.x) / 2,
-      y: (track01.outer.y + track01.inner.y) / 2,
-      width: (track01.outer.width + track01.inner.width) / 2,
-      height: (track01.outer.height + track01.inner.height) / 2
-    };
-    gfx.lineStyle(3, 0xf8fafc, 0.45);
-    gfx.strokeRect(midRect.x, midRect.y, midRect.width, midRect.height);
+    gfx.lineStyle(3, 0xf8fafc, 0.35);
+    gfx.strokePoints(this.activeTrack.geometry.sampledCenterline, true);
 
-    gfx.lineStyle(10, 0xd64545, 1);
-    gfx.strokeRect(track01.outer.x + 2, track01.outer.y + 2, track01.outer.width - 4, track01.outer.height - 4);
-    gfx.strokeRect(track01.inner.x - 2, track01.inner.y - 2, track01.inner.width + 4, track01.inner.height + 4);
-
-    const start = track01.checkpoints[0];
-    gfx.fillStyle(0xffffff, 1);
-    gfx.fillRect(start.x, start.y, start.width, start.height);
-
-    for (let index = 1; index < track01.checkpoints.length; index += 1) {
-      const cp = track01.checkpoints[index];
-      gfx.fillStyle(0xffcc00, 0.3);
-      gfx.fillRect(cp.x, cp.y, cp.width, cp.height);
-    }
+    this.activeTrack.asset.checkpoints.forEach((checkpoint, index) => {
+      if (index === 0) {
+        gfx.lineStyle(6, 0xffffff, 1);
+      } else {
+        gfx.lineStyle(4, 0xffcc00, 0.55);
+      }
+      gfx.lineBetween(checkpoint.a.x, checkpoint.a.y, checkpoint.b.x, checkpoint.b.y);
+    });
   }
 
   private updateDriftFx(isDrifting: boolean, deltaMs: number): void {

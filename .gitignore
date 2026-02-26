@@ -7,4 +7,6 @@ coverage
 *.sqlite
 *.sqlite3
 server/server/data/
+client/public/tracks/
+client/public/car.png
 

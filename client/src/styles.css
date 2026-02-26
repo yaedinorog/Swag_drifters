@@ -15,3 +15,122 @@ canvas {
   margin: 0 auto;
   image-rendering: pixelated;
 }
+
+.editor-shell {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  height: 100%;
+}
+
+.editor-panel {
+  box-sizing: border-box;
+  padding: 16px;
+  background: #0f172a;
+  border-right: 1px solid #334155;
+  overflow: auto;
+}
+
+.editor-panel h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.editor-help {
+  margin: 0 0 12px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.editor-panel label {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.editor-panel input,
+.editor-panel select,
+.editor-panel button {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #475569;
+  background: #111827;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.editor-panel button {
+  cursor: pointer;
+}
+
+.editor-panel button:hover {
+  background: #1e293b;
+}
+
+.editor-actions-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.editor-file-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  background: #111827;
+}
+
+.editor-file-btn input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.editor-canvas-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #0b1222;
+}
+
+#editorCanvas {
+  border: 1px solid #334155;
+  max-width: 100%;
+  height: auto;
+}
+
+.editor-patch {
+  margin: 12px 0 0;
+  padding: 8px;
+  min-height: 56px;
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+.editor-validation {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.editor-validation ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.editor-back-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #93c5fd;
+  text-decoration: none;
+}

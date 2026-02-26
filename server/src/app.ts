@@ -3,8 +3,9 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import { createLeaderboardRouter } from "./routes/leaderboard.js";
 import type { ScoreService } from "./services/scoreService.js";
+import type { TrackRegistry } from "./tracks/trackRegistry.js";
 
-export function createApp(scoreService: ScoreService) {
+export function createApp(scoreService: ScoreService, trackRegistry: TrackRegistry) {
   const app = express();
 
   app.use(cors());
@@ -16,7 +17,7 @@ export function createApp(scoreService: ScoreService) {
       max: 30
     })
   );
-  app.use("/api/leaderboard", createLeaderboardRouter(scoreService));
+  app.use("/api/leaderboard", createLeaderboardRouter(scoreService, trackRegistry));
 
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true });

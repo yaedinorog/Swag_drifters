@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { ScoreService } from "../services/scoreService.js";
+import type { TrackRegistry } from "../tracks/trackRegistry.js";
 
-const allowedTracks = new Set(["track_01"]);
 const playerNamePattern = /^[A-Za-z0-9_ ]{3,16}$/;
 
 function parseLimit(raw: unknown): number | null {
@@ -15,14 +15,14 @@ function parseLimit(raw: unknown): number | null {
   return value;
 }
 
-export function createLeaderboardRouter(scoreService: ScoreService): Router {
+export function createLeaderboardRouter(scoreService: ScoreService, trackRegistry: TrackRegistry): Router {
   const router = Router();
 
   router.get("/", (req, res) => {
     const trackId = String(req.query.trackId ?? "");
     const limit = req.query.limit === undefined ? 10 : parseLimit(req.query.limit);
 
-    if (!allowedTracks.has(trackId)) {
+    if (!trackRegistry.hasTrack(trackId)) {
       res.status(400).json({ error: "Invalid trackId" });
       return;
     }
@@ -45,7 +45,7 @@ export function createLeaderboardRouter(scoreService: ScoreService): Router {
       res.status(400).json({ error: "Invalid playerName" });
       return;
     }
-    if (!allowedTracks.has(trackId)) {
+    if (!trackRegistry.hasTrack(trackId)) {
       res.status(400).json({ error: "Invalid trackId" });
       return;
     }

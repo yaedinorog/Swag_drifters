@@ -26,7 +26,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const button = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 120, "[ START RACE ]", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 130, "[ LEVEL SELECT ]", {
         fontFamily: "monospace",
         fontSize: "36px",
         color: "#ffd166",
@@ -36,11 +36,26 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
-    button.on("pointerdown", () => {
-      this.scene.start("race");
+    button.on("pointerdown", () => this.scene.start("level_select"));
+
+    const editorButton = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 210, "[ TRACK EDITOR ]", {
+        fontFamily: "monospace",
+        fontSize: "28px",
+        color: "#93c5fd",
+        backgroundColor: "#172034",
+        padding: { left: 12, right: 12, top: 6, bottom: 6 }
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    editorButton.on("pointerdown", () => {
+      const base = import.meta.env.BASE_URL.endsWith("/")
+        ? import.meta.env.BASE_URL
+        : `${import.meta.env.BASE_URL}/`;
+      window.location.href = `${base}editor`;
     });
 
-    this.input.keyboard?.once("keydown-SPACE", () => this.scene.start("race"));
-    this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("race"));
+    this.input.keyboard?.once("keydown-SPACE", () => this.scene.start("level_select"));
+    this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("level_select"));
   }
 }

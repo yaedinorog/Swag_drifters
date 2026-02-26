@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/sync-public-assets.mjs",
     "dev": "vite",
+    "prebuild": "node ../scripts/sync-public-assets.mjs",
     "build": "tsc -p tsconfig.json && vite build",
+    "postbuild": "node ../scripts/postbuild-editor-entry.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

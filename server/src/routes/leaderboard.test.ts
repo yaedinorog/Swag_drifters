@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { SQLiteScoreService } from "../services/scoreService.js";
+import { StaticTrackRegistry } from "../tracks/trackRegistry.js";
 
 function setupApp() {
   const db = new Database(":memory:");
@@ -16,7 +17,8 @@ function setupApp() {
     );
   `);
   const scoreService = new SQLiteScoreService(db);
-  const app = createApp(scoreService);
+  const trackRegistry = new StaticTrackRegistry(new Set(["track_01", "track_02"]), "test");
+  const app = createApp(scoreService, trackRegistry);
   return { app, db };
 }
 

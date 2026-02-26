@@ -1,4 +1,4 @@
-import { isInsideRect } from "./trackConfig";
+import { segmentsIntersect } from "./geometry";
 export class LapTracker {
     constructor(track, raceStartMs, totalLaps) {
         this.track = track;
@@ -10,18 +10,16 @@ export class LapTracker {
             checkpointsPassed: 0
         };
         this.nextCheckpointIndex = 1;
-        this.insideCurrentCheckpoint = false;
     }
     getState() {
         return { ...this.lapState };
     }
-    update(x, y, nowMs) {
-        const targetCheckpoint = this.track.checkpoints[this.nextCheckpointIndex];
-        const inside = isInsideRect(x, y, targetCheckpoint);
+    update(previousPosition, currentPosition, nowMs) {
+        const targetCheckpoint = this.track.asset.checkpoints[this.nextCheckpointIndex];
         let lapCompleted = false;
         let completedLapTimeMs = null;
         let raceCompleted = false;
-        if (inside && !this.insideCurrentCheckpoint) {
+        if (segmentsIntersect(previousPosition, currentPosition, targetCheckpoint.a, targetCheckpoint.b)) {
             if (this.nextCheckpointIndex === 0) {
                 lapCompleted = true;
                 completedLapTimeMs = nowMs - this.lapState.lapStartMs;
@@ -37,10 +35,9 @@ export class LapTracker {
             }
             else {
                 this.lapState.checkpointsPassed += 1;
-                this.nextCheckpointIndex = (this.nextCheckpointIndex + 1) % this.track.checkpoints.length;
+                this.nextCheckpointIndex = (this.nextCheckpointIndex + 1) % this.track.asset.checkpoints.length;
             }
         }
-        this.insideCurrentCheckpoint = inside;
         return { state: { ...this.lapState }, lapCompleted, completedLapTimeMs, raceCompleted };
     }
 }
