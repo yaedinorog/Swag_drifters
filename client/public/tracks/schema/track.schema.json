@@ -1,0 +1,59 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://drift-loop.local/track.schema.json",
+  "title": "TrackAssetV1",
+  "type": "object",
+  "required": ["version", "id", "name", "centerline", "roadWidth", "spawn", "checkpoints", "style"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9_\\-]{3,40}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "centerline": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "$ref": "#/definitions/vec2" }
+    },
+    "roadWidth": { "type": "number", "minimum": 20, "maximum": 400 },
+    "spawn": {
+      "type": "object",
+      "required": ["x", "y", "heading"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "heading": { "type": "number" }
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "a", "b"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "a": { "$ref": "#/definitions/vec2" },
+          "b": { "$ref": "#/definitions/vec2" }
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "required": ["grassColor", "asphaltColor", "borderColor"],
+      "properties": {
+        "grassColor": { "type": "string" },
+        "asphaltColor": { "type": "string" },
+        "borderColor": { "type": "string" }
+      }
+    }
+  },
+  "definitions": {
+    "vec2": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    }
+  }
+}
