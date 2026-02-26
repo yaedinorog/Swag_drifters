@@ -27,18 +27,19 @@ export class StaticTrackRegistry implements TrackRegistry {
 }
 
 function resolveDefaultManifestPath(): string {
-  const fromCwd = path.resolve(process.cwd(), "tracks", "manifest.json");
-  if (fs.existsSync(fromCwd)) {
-    return fromCwd;
-  }
+  const candidates = [
+    path.resolve(process.cwd(), "tracks", "manifest.json"),
+    path.resolve(process.cwd(), "client", "public", "tracks", "manifest.json")
+  ];
 
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../");
-  const fromRepoRoot = path.resolve(repoRoot, "tracks", "manifest.json");
-  if (fs.existsSync(fromRepoRoot)) {
-    return fromRepoRoot;
-  }
+  candidates.push(
+    path.resolve(repoRoot, "tracks", "manifest.json"),
+    path.resolve(repoRoot, "client", "public", "tracks", "manifest.json")
+  );
 
-  return fromCwd;
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  return found ?? candidates[0];
 }
 
 export function loadTrackRegistry(manifestPath = resolveDefaultManifestPath()): TrackRegistry {
