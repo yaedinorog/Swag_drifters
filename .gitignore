@@ -7,3 +7,4 @@ coverage
 *.sqlite
 *.sqlite3
 server/server/data/
+PROJECT_CONTEXT.md
