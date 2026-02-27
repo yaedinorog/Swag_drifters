@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-ts/
+client/dist/
 .DS_Store
 *.log
 server/data/
@@ -9,4 +10,4 @@ coverage
 *.sqlite3
 server/server/data/
 client/public/car.png
-client/public/tracks/
+tracks/

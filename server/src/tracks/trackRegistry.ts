@@ -26,6 +26,18 @@ export class StaticTrackRegistry implements TrackRegistry {
   }
 }
 
+class AllowAllTrackRegistry implements TrackRegistry {
+  constructor(public readonly checksum: string) {}
+
+  hasTrack(_trackId: string): boolean {
+    return true;
+  }
+
+  listTrackIds(): string[] {
+    return [];
+  }
+}
+
 function resolveDefaultManifestPath(): string {
   const candidates = [
     path.resolve(process.cwd(), "tracks", "manifest.json"),
@@ -43,6 +55,9 @@ function resolveDefaultManifestPath(): string {
 }
 
 export function loadTrackRegistry(manifestPath = resolveDefaultManifestPath()): TrackRegistry {
+  if (!fs.existsSync(manifestPath)) {
+    return new AllowAllTrackRegistry("disabled");
+  }
   const raw = fs.readFileSync(manifestPath, "utf8");
   const sanitized = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
   const parsed = JSON.parse(sanitized) as TrackManifest;

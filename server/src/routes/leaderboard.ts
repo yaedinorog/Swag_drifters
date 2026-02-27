@@ -22,10 +22,6 @@ export function createLeaderboardRouter(scoreService: ScoreService, trackRegistr
     const trackId = String(req.query.trackId ?? "");
     const limit = req.query.limit === undefined ? 10 : parseLimit(req.query.limit);
 
-    if (!trackRegistry.hasTrack(trackId)) {
-      res.status(400).json({ error: "Invalid trackId" });
-      return;
-    }
     if (limit === null) {
       res.status(400).json({ error: "Invalid limit" });
       return;
@@ -43,10 +39,6 @@ export function createLeaderboardRouter(scoreService: ScoreService, trackRegistr
 
     if (!playerNamePattern.test(playerName)) {
       res.status(400).json({ error: "Invalid playerName" });
-      return;
-    }
-    if (!trackRegistry.hasTrack(trackId)) {
-      res.status(400).json({ error: "Invalid trackId" });
       return;
     }
     if (!Number.isFinite(rawTimeMs) || timeMs < 10_000 || timeMs > 3_600_000) {

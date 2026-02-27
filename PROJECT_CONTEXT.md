@@ -25,8 +25,7 @@ Repository remote:
 
 - `client/` - game + `/editor` mode
 - `server/` - leaderboard API
-- `tracks/` - shared track assets and manifest
-- `tracks/schema/track.schema.json` - JSON schema for tracks
+- `client/public/tracks/` - track assets and manifest (single source of truth)
 - `scripts/` - helper scripts (`sync-public-assets`, `postbuild-editor-entry`, `tracks-add`)
 - `.github/workflows/deploy-pages.yml` - GitHub Pages deployment workflow
 
@@ -50,7 +49,7 @@ Repository remote:
 - Point-on-track collision via generated road quads + broad-phase bounds
 - Figure-eight tracks supported via union of generated road segments
 - Custom/edited tracks are persisted in `localStorage` and merged on startup
-- `sync-public-assets` no longer overwrites newer files in `client/public/tracks`
+- `sync-public-assets` syncs only car asset; tracks live in `client/public/tracks`
 
 ### Track editor
 - Available at `/editor`
@@ -62,7 +61,6 @@ Repository remote:
 ### Leaderboard/API
 - `GET /api/leaderboard?trackId=...&limit=...`
 - `POST /api/leaderboard`
-- `trackId` validation uses `tracks/manifest.json` through server `TrackRegistry`
 - SQLite storage + sorted top list by best time
 - Server accepts numeric `timeMs` and rounds before saving
 - API tests with Vitest + Supertest
@@ -112,6 +110,7 @@ Behavior:
 - Triggers on push to `main` and manual dispatch
 - Builds client with base path `/${repo-name}/`
 - Syncs `tracks/` + `car.png` into `client/public` before build
+- Tracks already live in `client/public/tracks`
 - Publishes `client/dist` via GitHub Pages Actions
 - Copies `dist/index.html` to `dist/editor/index.html` for direct `/editor` static path
 
