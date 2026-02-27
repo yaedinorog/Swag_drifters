@@ -40,7 +40,9 @@ Repository remote:
 - Handbrake support (`Space`)
 - Race timer starts only after car movement
 - HUD: speed, lap, timer, drift indicator
-- Result screen with final and best lap time
+- Result screen with final time, best lap, and average speed
+- Pause screen during race (`P` or `Esc`) with navigation to menu or level select
+- Skid marks expire by time (not by count)
 
 ### Track system
 - Track asset format: `TrackAssetV1` (`centerline`, `roadWidth`, `spawn`, segment checkpoints)
@@ -48,6 +50,7 @@ Repository remote:
 - Point-on-track collision via generated road quads + broad-phase bounds
 - Figure-eight tracks supported via union of generated road segments
 - Custom/edited tracks are persisted in `localStorage` and merged on startup
+- `sync-public-assets` no longer overwrites newer files in `client/public/tracks`
 
 ### Track editor
 - Available at `/editor`
@@ -63,6 +66,7 @@ Repository remote:
 - SQLite storage + sorted top list by best time
 - Server accepts numeric `timeMs` and rounds before saving
 - API tests with Vitest + Supertest
+- Client tests with Vitest + jsdom
 
 ## 4. Current Controls
 
@@ -76,6 +80,10 @@ Repository remote:
   - `S` submit score
   - `R` retry
   - `M` menu
+- Pause screen:
+  - `P`/`Esc` resume
+  - `L` level select
+  - `M` menu
 
 ## 5. Build, Run, Test
 
@@ -87,6 +95,7 @@ From repo root:
 - Build client: `npm run build:client`
 - Build server: `npm run build:server`
 - Tests: `npm test`
+- Client tests: `npm --workspace client run test`
 - Add/update track from file: `npm run tracks:add -- --file <track.json>`
 
 Default local URLs:
