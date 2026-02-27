@@ -104,6 +104,15 @@ export function injectTestTrack(asset: TrackAssetV1): void {
   }
 }
 
+async function tryLoadTrackAsset(baseUrl: string, item: TrackManifestItem): Promise<RuntimeTrack | null> {
+  try {
+    return await loadTrackAsset(baseUrl, item);
+  } catch (error) {
+    console.warn(`Failed to load track '${item.id}' from '${item.file}'.`, error);
+    return null;
+  }
+}
+
 export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promise<void> {
   const normalizedBase = normalizeBase(baseUrl);
   const manifest = await fetchJson<TrackManifest>(`${normalizedBase}tracks/manifest.json`);
@@ -112,9 +121,9 @@ export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promis
     throw new Error("Unsupported tracks manifest version.");
   }
 
-  const loadedTracks = await Promise.all(
-    manifest.tracks.map((item) => loadTrackAsset(normalizedBase, item))
-  );
+  const loadedTracks = (await Promise.all(
+    manifest.tracks.map((item) => tryLoadTrackAsset(normalizedBase, item))
+  )).filter((track): track is RuntimeTrack => Boolean(track));
 
   const ids = new Set<string>();
   loadedTracks.forEach((track) => {
@@ -156,6 +165,10 @@ export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promis
       mergedIds.add(track.asset.id);
     }
   });
+
+  if (mergedTracks.length === 0) {
+    throw new Error("No tracks could be loaded from manifest.");
+  }
 
   tracks = mergedTracks;
   loaded = true;
