@@ -144,10 +144,10 @@ export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promis
         asset,
         geometry: buildTrackGeometry(asset)
       };
-      if (trackById.has(asset.id)) {
-        trackById.set(asset.id, runtime);
-      } else {
+      if (!trackById.has(asset.id)) {
         extraTracks.push(runtime);
+      } else {
+        console.warn(`Ignoring stored track '${asset.id}' because it exists in manifest.`);
       }
     } catch (err) {
       console.warn(`Skipping stored track '${asset.id}'.`, err);

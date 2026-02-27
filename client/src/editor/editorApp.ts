@@ -88,6 +88,8 @@ function normalizeBase(baseUrl: string): string {
 }
 
 export function mountEditorApp(root: HTMLElement): void {
+  const baseTrackIds = new Set(getTracks().map((track) => track.asset.id));
+  const customTrackIds = new Set<string>();
   const state: EditorState = {
     tracks: getTracks().map((track) => cloneTrack(track.asset)),
     selectedTrackIndex: 0,
@@ -107,12 +109,22 @@ export function mountEditorApp(root: HTMLElement): void {
     lastPanPoint: null
   };
   let saveTimer: number | null = null;
+  const updateCustomTrackIds = (): void => {
+    state.tracks.forEach((track) => {
+      if (!baseTrackIds.has(track.id)) {
+        customTrackIds.add(track.id);
+      }
+    });
+  };
+
   const scheduleSave = (): void => {
     if (saveTimer !== null) {
       window.clearTimeout(saveTimer);
     }
     saveTimer = window.setTimeout(() => {
-      saveCustomTracks(state.tracks);
+      updateCustomTrackIds();
+      const customTracks = state.tracks.filter((track) => customTrackIds.has(track.id));
+      saveCustomTracks(customTracks);
       saveTimer = null;
     }, 300);
   };
@@ -244,6 +256,7 @@ export function mountEditorApp(root: HTMLElement): void {
     renderTrackSelect();
     renderValidation();
     draw();
+    updateCustomTrackIds();
     scheduleSave();
   };
 
@@ -644,7 +657,9 @@ export function mountEditorApp(root: HTMLElement): void {
 
   root.querySelector<HTMLButtonElement>("#createTrack")?.addEventListener("click", () => {
     const nextIndex = state.tracks.length + 1;
-    state.tracks.push(makeDefaultTrack(`track_${String(nextIndex).padStart(2, "0")}`, `Track ${nextIndex}`));
+    const newTrack = makeDefaultTrack(`track_${String(nextIndex).padStart(2, "0")}`, `Track ${nextIndex}`);
+    state.tracks.push(newTrack);
+    customTrackIds.add(newTrack.id);
     state.selectedTrackIndex = state.tracks.length - 1;
     state.selectedCenterPoint = null;
     state.selectedCheckpointIndex = 0;
@@ -656,6 +671,7 @@ export function mountEditorApp(root: HTMLElement): void {
     source.id = `${source.id}_copy`;
     source.name = `${source.name} Copy`;
     state.tracks.push(source);
+    customTrackIds.add(source.id);
     state.selectedTrackIndex = state.tracks.length - 1;
     refreshForm();
   });
@@ -736,6 +752,7 @@ export function mountEditorApp(root: HTMLElement): void {
     const text = await file.text();
     const parsed = JSON.parse(text) as TrackAssetV1;
     state.tracks.push(parsed);
+    customTrackIds.add(parsed.id);
     state.selectedTrackIndex = state.tracks.length - 1;
     state.selectedCheckpointIndex = 0;
     refreshForm();

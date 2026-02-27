@@ -68,7 +68,7 @@ describe("trackStore", () => {
     expect(track?.asset.name).toBe("Track 01");
   });
 
-  it("overrides manifest track with localStorage track", async () => {
+  it("ignores stored tracks that collide with manifest ids", async () => {
     const customTrack: TrackAssetV1 = {
       ...baseTrack,
       name: "Custom Track 01"
@@ -77,7 +77,7 @@ describe("trackStore", () => {
     const store = await import("../core/track/trackStore");
     await store.loadTrackStore("http://example.com/");
     const track = store.getTrackById("track_01");
-    expect(track?.asset.name).toBe("Custom Track 01");
+    expect(track?.asset.name).toBe("Track 01");
   });
 
   it("injectTestTrack replaces existing track", async () => {
