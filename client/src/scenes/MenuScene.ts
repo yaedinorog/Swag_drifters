@@ -2,11 +2,15 @@ import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../core/constants";
 
 export class MenuScene extends Phaser.Scene {
+  private levelSelectButton?: Phaser.GameObjects.Text;
+  private editorButton?: Phaser.GameObjects.Text;
+
   constructor() {
     super("menu");
   }
 
   create(): void {
+    this.input.enabled = true;
     this.cameras.main.setBackgroundColor("#0c1018");
     this.add
       .text(GAME_WIDTH / 2, 190, "DRIFT LOOP MVP", {
@@ -25,7 +29,7 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const button = this.add
+    this.levelSelectButton = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 130, "[ LEVEL SELECT ]", {
         fontFamily: "monospace",
         fontSize: "36px",
@@ -36,9 +40,9 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
-    button.on("pointerdown", () => this.scene.start("level_select"));
+    this.levelSelectButton.on("pointerdown", this.handleLevelSelect, this);
 
-    const editorButton = this.add
+    this.editorButton = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 210, "[ TRACK EDITOR ]", {
         fontFamily: "monospace",
         fontSize: "28px",
@@ -48,14 +52,25 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    editorButton.on("pointerdown", () => {
-      const base = import.meta.env.BASE_URL.endsWith("/")
-        ? import.meta.env.BASE_URL
-        : `${import.meta.env.BASE_URL}/`;
-      window.location.href = `${base}editor`;
-    });
+    this.editorButton.on("pointerdown", this.handleOpenEditor, this);
 
-    this.input.keyboard?.once("keydown-SPACE", () => this.scene.start("level_select"));
-    this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("level_select"));
+    this.input.keyboard?.on("keydown-SPACE", this.handleLevelSelect, this);
+    this.input.keyboard?.on("keydown-ENTER", this.handleLevelSelect, this);
+
+    this.events.once("shutdown", () => {
+      this.input.keyboard?.off("keydown-SPACE", this.handleLevelSelect, this);
+      this.input.keyboard?.off("keydown-ENTER", this.handleLevelSelect, this);
+    });
+  }
+
+  private handleLevelSelect(): void {
+    this.scene.start("level_select");
+  }
+
+  private handleOpenEditor(): void {
+    const base = import.meta.env.BASE_URL.endsWith("/")
+      ? import.meta.env.BASE_URL
+      : `${import.meta.env.BASE_URL}/`;
+    window.location.href = `${base}editor`;
   }
 }

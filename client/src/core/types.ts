@@ -33,4 +33,5 @@ export interface LeaderboardEntry {
 export interface RaceResult {
   finalTimeMs: number;
   bestLapMs: number;
+  averageSpeedKmh: number;
 }

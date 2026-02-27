@@ -17,8 +17,17 @@ const tracksDest = path.join(repoRoot, "client", "public", "tracks");
 fs.mkdirSync(tracksDest, { recursive: true });
 const tracksFiles = fs.readdirSync(tracksSrc);
 for (const file of tracksFiles) {
-    if (file.endsWith(".json")) {
-        fs.copyFileSync(path.join(tracksSrc, file), path.join(tracksDest, file));
+    if (!file.endsWith(".json")) continue;
+    const srcPath = path.join(tracksSrc, file);
+    const destPath = path.join(tracksDest, file);
+    if (!fs.existsSync(destPath)) {
+        fs.copyFileSync(srcPath, destPath);
+        continue;
+    }
+    const srcStat = fs.statSync(srcPath);
+    const destStat = fs.statSync(destPath);
+    if (srcStat.mtimeMs > destStat.mtimeMs) {
+        fs.copyFileSync(srcPath, destPath);
     }
 }
 

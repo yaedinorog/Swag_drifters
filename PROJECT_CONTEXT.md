@@ -47,6 +47,7 @@ Repository remote:
 - Runtime geometry generation from centerline (`TrackGeometryBuilder`)
 - Point-on-track collision via generated road quads + broad-phase bounds
 - Figure-eight tracks supported via union of generated road segments
+- Custom/edited tracks are persisted in `localStorage` and merged on startup
 
 ### Track editor
 - Available at `/editor`

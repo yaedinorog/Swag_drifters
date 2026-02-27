@@ -14,8 +14,18 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.tracks = getTracks();
-    this.cameras.main.setBackgroundColor("#0a0f1a");
+    try {
+      this.tracks = getTracks();
+      this.cameras.main.setBackgroundColor("#0a0f1a");
+    } catch (error) {
+      console.error("Failed to initialize level select scene.", error);
+      this.scene.start("menu");
+      return;
+    }
+    if (this.cards.length > 0) {
+      this.cards.forEach((card) => card.destroy(true));
+      this.cards = [];
+    }
 
     this.add
       .text(GAME_WIDTH / 2, 80, "LEVEL SELECT", {
@@ -85,6 +95,8 @@ export class LevelSelectScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-ENTER", this.startRace, this);
       this.input.keyboard?.off("keydown-SPACE", this.startRace, this);
       this.input.keyboard?.off("keydown-ESC", this.backToMenu, this);
+      this.cards.forEach((card) => card.destroy(true));
+      this.cards = [];
     });
   }
 
@@ -156,7 +168,10 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private refreshCards(): void {
     this.cards.forEach((card, index) => {
-      const bg = card.getAt(0) as Phaser.GameObjects.Rectangle;
+      const bg = card.getAt(0) as Phaser.GameObjects.Rectangle | undefined;
+      if (!bg) {
+        return;
+      }
       const selected = index === this.selectedTrackIndex && index < this.tracks.length;
       bg.setStrokeStyle(selected ? 4 : 2, selected ? 0xf59e0b : 0x374151, 1);
       bg.setFillStyle(selected ? 0x162034 : 0x111827, 1);

@@ -1,5 +1,5 @@
 ﻿import { buildTrackGeometry, isCenterlineClosed, isOnTrackFromGeometry } from "../core/track/geometry";
-import { getTracks } from "../core/track/trackStore";
+import { getTracks, saveCustomTracks } from "../core/track/trackStore";
 import type { TrackAssetV1, TrackCheckpoint } from "../core/track/types";
 import type { Vector2 } from "../core/types";
 
@@ -105,6 +105,16 @@ export function mountEditorApp(root: HTMLElement): void {
     cameraZoom: 1.0,
     isPanning: false,
     lastPanPoint: null
+  };
+  let saveTimer: number | null = null;
+  const scheduleSave = (): void => {
+    if (saveTimer !== null) {
+      window.clearTimeout(saveTimer);
+    }
+    saveTimer = window.setTimeout(() => {
+      saveCustomTracks(state.tracks);
+      saveTimer = null;
+    }, 300);
   };
 
   const storedTestDriveBackup = sessionStorage.getItem("swag_test_drive_backup");
@@ -234,6 +244,7 @@ export function mountEditorApp(root: HTMLElement): void {
     renderTrackSelect();
     renderValidation();
     draw();
+    scheduleSave();
   };
 
   const renderValidation = (): void => {

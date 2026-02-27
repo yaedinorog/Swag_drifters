@@ -13,6 +13,7 @@ import { Hud } from "../ui/hud";
 export class RaceScene extends Phaser.Scene {
   private static readonly CAR_SPRITE_HEADING_OFFSET = -Math.PI / 2;
   private static readonly ROAD_BORDER_PX = 10;
+  private static readonly SKID_MARK_LIFETIME_MS = 4500;
   private car!: Phaser.GameObjects.Sprite;
   private controls!: {
     throttle: Phaser.Input.Keyboard.Key[];
@@ -27,10 +28,11 @@ export class RaceScene extends Phaser.Scene {
   private hud!: Hud;
   private lapTracker!: LapTracker;
   private activeTrack!: RuntimeTrack;
+  private trackLapDistance = 0;
   private elapsedMs = 0;
   private timerStarted = false;
   private driftMarkCooldownMs = 0;
-  private skidMarks: Phaser.GameObjects.Image[] = [];
+  private skidMarks: { sprite: Phaser.GameObjects.Image; createdAtMs: number }[] = [];
   private uiCamera!: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
@@ -47,7 +49,7 @@ export class RaceScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.timerStarted = false;
     this.driftMarkCooldownMs = 0;
-    this.skidMarks.forEach((mark) => mark.destroy());
+    this.skidMarks.forEach((mark) => mark.sprite.destroy());
     this.skidMarks = [];
     this.drawTrack();
 
@@ -72,6 +74,7 @@ export class RaceScene extends Phaser.Scene {
     this.cameras.main.ignore(this.hud.getElements());
 
     this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
+    this.trackLapDistance = this.computeLapDistance(this.activeTrack);
 
     const keyboard = this.input.keyboard;
     if (!keyboard) {
@@ -166,9 +169,11 @@ export class RaceScene extends Phaser.Scene {
     );
 
     if (lapUpdate.raceCompleted && lapUpdate.state.bestLapMs !== null) {
+      const averageSpeedKmh = this.computeAverageSpeedKmh(elapsed);
       sessionState.result = {
         finalTimeMs: elapsed,
         bestLapMs: Math.round(lapUpdate.state.bestLapMs),
+        averageSpeedKmh,
         trackId: this.activeTrack.asset.id
       };
       this.scene.start("result");
@@ -229,6 +234,8 @@ export class RaceScene extends Phaser.Scene {
   }
 
   private updateDriftFx(isDrifting: boolean, deltaMs: number): void {
+    const nowMs = this.time.now;
+    this.cleanupSkidMarks(nowMs);
     this.driftMarkCooldownMs -= deltaMs;
     if (!isDrifting || this.driftMarkCooldownMs > 0) {
       return;
@@ -254,12 +261,38 @@ export class RaceScene extends Phaser.Scene {
       if (this.uiCamera) {
         this.uiCamera.ignore(mark);
       }
-      this.skidMarks.push(mark);
+      this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
     });
+  }
 
-    if (this.skidMarks.length > 220) {
+  private cleanupSkidMarks(nowMs: number): void {
+    const cutoff = nowMs - RaceScene.SKID_MARK_LIFETIME_MS;
+    while (this.skidMarks.length > 0 && this.skidMarks[0].createdAtMs <= cutoff) {
       const oldest = this.skidMarks.shift();
-      oldest?.destroy();
+      oldest?.sprite.destroy();
     }
+  }
+
+  private computeLapDistance(track: RuntimeTrack): number {
+    const points = track.geometry.sampledCenterline;
+    if (points.length < 2) {
+      return 0;
+    }
+    let distance = 0;
+    for (let i = 0; i < points.length; i += 1) {
+      const next = points[(i + 1) % points.length];
+      const current = points[i];
+      distance += Math.hypot(next.x - current.x, next.y - current.y);
+    }
+    return distance;
+  }
+
+  private computeAverageSpeedKmh(elapsedMs: number): number {
+    if (elapsedMs <= 0 || this.trackLapDistance <= 0) {
+      return 0;
+    }
+    const totalDistance = this.trackLapDistance * TOTAL_LAPS;
+    const speed = totalDistance / (elapsedMs / 1000);
+    return Number((speed * 0.18).toFixed(1));
   }
 }

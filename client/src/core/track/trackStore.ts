@@ -4,6 +4,7 @@ import type { RuntimeTrack, TrackAssetV1, TrackManifest, TrackManifestItem } fro
 
 let tracks: RuntimeTrack[] = [];
 let loaded = false;
+const STORAGE_KEY = "swag_custom_tracks_v1";
 
 function assertTrackAsset(asset: TrackAssetV1): void {
   if (asset.version !== 1) {
@@ -58,6 +59,38 @@ async function loadTrackAsset(baseUrl: string, item: TrackManifestItem): Promise
   };
 }
 
+function readStoredTracks(): TrackAssetV1[] {
+  if (typeof localStorage === "undefined") {
+    return [];
+  }
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      console.warn("Stored tracks payload is not an array.");
+      return [];
+    }
+    return parsed as TrackAssetV1[];
+  } catch (err) {
+    console.warn("Failed to parse stored tracks.", err);
+    return [];
+  }
+}
+
+export function saveCustomTracks(assets: TrackAssetV1[]): void {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
+  } catch (err) {
+    console.warn("Failed to persist custom tracks.", err);
+  }
+}
+
 export function injectTestTrack(asset: TrackAssetV1): void {
   const testTrack: RuntimeTrack = {
     asset,
@@ -91,7 +124,40 @@ export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promis
     ids.add(track.asset.id);
   });
 
-  tracks = loadedTracks;
+  const storedAssets = readStoredTracks();
+  const trackById = new Map(loadedTracks.map((track) => [track.asset.id, track]));
+  const extraTracks: RuntimeTrack[] = [];
+
+  storedAssets.forEach((asset) => {
+    try {
+      assertTrackAsset(asset);
+      const runtime: RuntimeTrack = {
+        asset,
+        geometry: buildTrackGeometry(asset)
+      };
+      if (trackById.has(asset.id)) {
+        trackById.set(asset.id, runtime);
+      } else {
+        extraTracks.push(runtime);
+      }
+    } catch (err) {
+      console.warn(`Skipping stored track '${asset.id}'.`, err);
+    }
+  });
+
+  const mergedTracks = manifest.tracks
+    .map((item) => trackById.get(item.id))
+    .filter((track): track is RuntimeTrack => Boolean(track));
+
+  const mergedIds = new Set(mergedTracks.map((track) => track.asset.id));
+  extraTracks.forEach((track) => {
+    if (!mergedIds.has(track.asset.id)) {
+      mergedTracks.push(track);
+      mergedIds.add(track.asset.id);
+    }
+  });
+
+  tracks = mergedTracks;
   loaded = true;
 }
 
