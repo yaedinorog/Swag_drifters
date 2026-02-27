@@ -3,7 +3,7 @@
   "$id": "https://drift-loop.local/track.schema.json",
   "title": "TrackAssetV1",
   "type": "object",
-  "required": ["version", "id", "name", "centerline", "roadWidth", "spawn", "checkpoints", "style"],
+  "required": ["version", "id", "centerline", "roadWidth", "spawn", "checkpoints", "style"],
   "properties": {
     "version": { "const": 1 },
     "id": { "type": "string", "pattern": "^[a-z0-9_\\-]{3,40}$" },

@@ -39,14 +39,11 @@ async function fetchJson<T>(url: string): Promise<T> {
 async function loadTrackAsset(baseUrl: string, item: TrackManifestItem): Promise<RuntimeTrack> {
   const loadedAsset = await fetchJson<TrackAssetV1>(`${baseUrl}tracks/${item.file}`);
   assertTrackAsset(loadedAsset);
-  const asset =
-    loadedAsset.id === item.id
-      ? loadedAsset
-      : {
-        ...loadedAsset,
-        id: item.id,
-        name: item.name
-      };
+  const asset: TrackAssetV1 = {
+    ...loadedAsset,
+    id: item.id,
+    name: item.name
+  };
   if (loadedAsset.id !== item.id) {
     console.warn(
       `Track asset id mismatch for '${item.file}': manifest id '${item.id}', asset id '${loadedAsset.id}'. Using manifest id.`
