@@ -29,7 +29,7 @@ export class LevelSelectScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         140,
-        "ARROWS: choose level    DOUBLE CLICK or ENTER/SPACE: start    ESC: menu",
+        "ARROWS/WASD: choose level    CLICK or ENTER/SPACE: start    ESC: menu",
         {
           fontFamily: "monospace",
           fontSize: "20px",
@@ -65,6 +65,10 @@ export class LevelSelectScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-RIGHT", this.selectRight, this);
     this.input.keyboard?.on("keydown-UP", this.selectUp, this);
     this.input.keyboard?.on("keydown-DOWN", this.selectDown, this);
+    this.input.keyboard?.on("keydown-A", this.selectLeft, this);
+    this.input.keyboard?.on("keydown-D", this.selectRight, this);
+    this.input.keyboard?.on("keydown-W", this.selectUp, this);
+    this.input.keyboard?.on("keydown-S", this.selectDown, this);
     this.input.keyboard?.on("keydown-ENTER", this.startRace, this);
     this.input.keyboard?.on("keydown-SPACE", this.startRace, this);
     this.input.keyboard?.on("keydown-ESC", this.backToMenu, this);
@@ -74,6 +78,10 @@ export class LevelSelectScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-RIGHT", this.selectRight, this);
       this.input.keyboard?.off("keydown-UP", this.selectUp, this);
       this.input.keyboard?.off("keydown-DOWN", this.selectDown, this);
+      this.input.keyboard?.off("keydown-A", this.selectLeft, this);
+      this.input.keyboard?.off("keydown-D", this.selectRight, this);
+      this.input.keyboard?.off("keydown-W", this.selectUp, this);
+      this.input.keyboard?.off("keydown-S", this.selectDown, this);
       this.input.keyboard?.off("keydown-ENTER", this.startRace, this);
       this.input.keyboard?.off("keydown-SPACE", this.startRace, this);
       this.input.keyboard?.off("keydown-ESC", this.backToMenu, this);
@@ -128,19 +136,19 @@ export class LevelSelectScene extends Phaser.Scene {
       card.add(lockedText);
     }
 
-    card.setSize(cardWidth, cardHeight);
-    card.setInteractive(
-      new Phaser.Geom.Rectangle(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight),
-      Phaser.Geom.Rectangle.Contains
-    );
-    card.on("pointerdown", () => {
+    bg.setInteractive({ useHandCursor: true });
+    bg.on("pointerover", () => {
       if (!track) return;
-      if (this.selectedTrackIndex === index) {
-        this.startRace();
-      } else {
+      if (this.selectedTrackIndex !== index) {
         this.selectedTrackIndex = index;
         this.refreshCards();
       }
+    });
+
+    bg.on("pointerdown", () => {
+      if (!track) return;
+      this.selectedTrackIndex = index;
+      this.startRace();
     });
 
     return card;
