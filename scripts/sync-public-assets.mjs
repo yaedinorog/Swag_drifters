@@ -7,6 +7,19 @@ const carSrc = path.join(repoRoot, "Images", "car.png");
 const carDest = path.join(repoRoot, "client", "public", "car.png");
 
 fs.mkdirSync(path.dirname(carDest), { recursive: true });
-fs.copyFileSync(carSrc, carDest);
+if (fs.existsSync(carSrc)) {
+    fs.copyFileSync(carSrc, carDest);
+}
 
-console.log("Synced car asset into client/public (tracks are not overwritten).");
+const tracksSrc = path.join(repoRoot, "tracks");
+const tracksDest = path.join(repoRoot, "client", "public", "tracks");
+
+fs.mkdirSync(tracksDest, { recursive: true });
+const tracksFiles = fs.readdirSync(tracksSrc);
+for (const file of tracksFiles) {
+    if (file.endsWith(".json")) {
+        fs.copyFileSync(path.join(tracksSrc, file), path.join(tracksDest, file));
+    }
+}
+
+console.log("Synced car asset and tracks into client/public.");

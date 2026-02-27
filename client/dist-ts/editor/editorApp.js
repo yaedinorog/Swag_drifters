@@ -69,7 +69,12 @@ export function mountEditorApp(root) {
         draggingCheckpointLine: false,
         checkpointLineDragOrigin: null,
         checkpointLineOriginal: null,
-        draftCheckpointStart: null
+        draftCheckpointStart: null,
+        cameraX: 0,
+        cameraY: 0,
+        cameraZoom: 1.0,
+        isPanning: false,
+        lastPanPoint: null
     };
     root.innerHTML = `
     <div class="editor-shell">
@@ -77,52 +82,75 @@ export function mountEditorApp(root) {
         <h1>Track Editor</h1>
         <p class="editor-help">Modes: centerline / spawn / checkpoint</p>
 
-        <label>Track</label>
-        <select id="trackSelect"></select>
-        <div class="editor-actions-row">
-          <button id="createTrack">Create</button>
-          <button id="duplicateTrack">Duplicate</button>
+        <div class="editor-section">
+          <h2 class="editor-section-title">Track Management</h2>
+          <label>Track</label>
+          <select id="trackSelect"></select>
+          <div class="editor-actions-row">
+            <button id="createTrack">Create</button>
+            <button id="duplicateTrack">Duplicate</button>
+          </div>
+          <div class="editor-actions-row">
+            <button id="testDriveTrack" style="background-color: #2563eb; color: #fff; font-weight: bold; width: 100%; margin-bottom: 0.5rem; border: none;">▶ Test Drive</button>
+          </div>
         </div>
 
-        <label>ID</label>
-        <input id="trackId" type="text" />
-        <label>Name</label>
-        <input id="trackName" type="text" />
-        <label>Road width</label>
-        <input id="roadWidth" type="number" min="20" max="400" step="1" />
-
-        <label>Mode</label>
-        <select id="editMode">
-          <option value="centerline">Centerline</option>
-          <option value="spawn">Spawn</option>
-          <option value="checkpoint">Checkpoint</option>
-        </select>
-
-        <div class="editor-actions-row">
-          <button id="setClosed">Close centerline</button>
-          <button id="deletePoint">Delete point</button>
+        <div class="editor-section">
+          <h2 class="editor-section-title">Properties</h2>
+          <label>ID</label>
+          <input id="trackId" type="text" />
+          <label>Name</label>
+          <input id="trackName" type="text" />
+          <label>Road width</label>
+          <input id="roadWidth" type="number" min="20" max="400" step="1" />
+          <label>Curve tension</label>
+          <input id="curveTension" type="range" min="0" max="1" step="0.05" />
         </div>
 
-        <label>Spawn X</label>
-        <input id="spawnX" type="number" />
-        <label>Spawn Y</label>
-        <input id="spawnY" type="number" />
-        <label>Spawn heading</label>
-        <input id="spawnHeading" type="number" step="0.01" />
+        <div class="editor-section">
+          <h2 class="editor-section-title">Edit Tools</h2>
+          <label>Mode</label>
+          <select id="editMode">
+            <option value="centerline">Centerline</option>
+            <option value="spawn">Spawn</option>
+            <option value="checkpoint">Checkpoint</option>
+          </select>
 
-        <label>Checkpoints</label>
-        <select id="checkpointSelect"></select>
-        <div class="editor-actions-row">
-          <button id="addCheckpoint">Add CP</button>
-          <button id="removeCheckpoint">Remove CP</button>
+          <div class="editor-actions-row">
+            <button id="setClosed">Close centerline</button>
+            <button id="deletePoint">Delete point</button>
+          </div>
         </div>
 
-        <div class="editor-actions-row">
-          <button id="exportTrack">Export JSON</button>
-          <button id="exportManifestPatch">Manifest patch</button>
+        <div class="editor-section">
+          <h2 class="editor-section-title">Spawn Setup</h2>
+          <label>Spawn X</label>
+          <input id="spawnX" type="number" />
+          <label>Spawn Y</label>
+          <input id="spawnY" type="number" />
+          <label>Spawn heading</label>
+          <input id="spawnHeading" type="number" step="0.01" />
         </div>
-        <div class="editor-actions-row">
-          <label class="editor-file-btn">Import JSON<input id="importTrack" type="file" accept="application/json" /></label>
+
+        <div class="editor-section">
+          <h2 class="editor-section-title">Checkpoints</h2>
+          <label>Checkpoints</label>
+          <select id="checkpointSelect"></select>
+          <div class="editor-actions-row">
+            <button id="addCheckpoint">Add CP</button>
+            <button id="removeCheckpoint">Remove CP</button>
+          </div>
+        </div>
+
+        <div class="editor-section">
+          <h2 class="editor-section-title">Data</h2>
+          <div class="editor-actions-row">
+            <button id="exportTrack">Export JSON</button>
+            <button id="exportManifestPatch">Manifest patch</button>
+          </div>
+          <div class="editor-actions-row">
+            <label class="editor-file-btn" style="width: 100%; text-align: center;">Import JSON<input id="importTrack" type="file" accept="application/json" /></label>
+          </div>
         </div>
 
         <pre id="manifestPatch" class="editor-patch"></pre>
@@ -137,6 +165,7 @@ export function mountEditorApp(root) {
     const trackId = root.querySelector("#trackId");
     const trackName = root.querySelector("#trackName");
     const roadWidth = root.querySelector("#roadWidth");
+    const curveTension = root.querySelector("#curveTension");
     const editMode = root.querySelector("#editMode");
     const spawnX = root.querySelector("#spawnX");
     const spawnY = root.querySelector("#spawnY");
@@ -177,6 +206,7 @@ export function mountEditorApp(root) {
         trackId.value = track.id;
         trackName.value = track.name;
         roadWidth.value = String(track.roadWidth);
+        curveTension.value = String(track.curveTension ?? 0.5);
         editMode.value = state.mode;
         spawnX.value = track.spawn.x.toFixed(2);
         spawnY.value = track.spawn.y.toFixed(2);
@@ -226,6 +256,9 @@ export function mountEditorApp(root) {
         let displayCenterline = track.centerline;
         ctx.fillStyle = track.style.grassColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(-state.cameraX, -state.cameraY);
+        ctx.scale(state.cameraZoom, state.cameraZoom);
         try {
             const geometry = buildTrackGeometry(track);
             const borderGeometry = buildTrackGeometry({
@@ -312,14 +345,17 @@ export function mountEditorApp(root) {
             ctx.arc(state.draftCheckpointStart.x, state.draftCheckpointStart.y, 6, 0, Math.PI * 2);
             ctx.stroke();
         }
+        ctx.restore();
     };
     const getCanvasPoint = (event) => {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
+        const basePxX = (event.clientX - rect.left) * scaleX;
+        const basePxY = (event.clientY - rect.top) * scaleY;
         return {
-            x: (event.clientX - rect.left) * scaleX,
-            y: (event.clientY - rect.top) * scaleY
+            x: (basePxX + state.cameraX) / state.cameraZoom,
+            y: (basePxY + state.cameraY) / state.cameraZoom
         };
     };
     const findNearestCenterPoint = (point, threshold = 12) => {
@@ -344,6 +380,12 @@ export function mountEditorApp(root) {
         return null;
     };
     canvas.addEventListener("mousedown", (event) => {
+        if (event.button === 1 || event.button === 2) {
+            // Middle or right click for panning
+            state.isPanning = true;
+            state.lastPanPoint = { x: event.clientX, y: event.clientY };
+            return;
+        }
         const point = getCanvasPoint(event);
         const track = currentTrack();
         if (state.mode === "centerline") {
@@ -390,6 +432,18 @@ export function mountEditorApp(root) {
         refreshForm();
     });
     canvas.addEventListener("mousemove", (event) => {
+        if (state.isPanning && state.lastPanPoint) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const dx = (event.clientX - state.lastPanPoint.x) * scaleX;
+            const dy = (event.clientY - state.lastPanPoint.y) * scaleY;
+            state.cameraX -= dx;
+            state.cameraY -= dy;
+            state.lastPanPoint = { x: event.clientX, y: event.clientY };
+            draw();
+            return;
+        }
         const point = getCanvasPoint(event);
         const track = currentTrack();
         if (state.mode === "centerline" && state.draggingCenterPoint && state.selectedCenterPoint !== null) {
@@ -419,6 +473,8 @@ export function mountEditorApp(root) {
         }
     });
     canvas.addEventListener("mouseup", () => {
+        state.isPanning = false;
+        state.lastPanPoint = null;
         state.draggingCenterPoint = false;
         state.draggingCheckpointHandle = null;
         state.draggingCheckpointLine = false;
@@ -434,6 +490,25 @@ export function mountEditorApp(root) {
         track.centerline.splice(track.centerline.length - 1, 0, point);
         state.selectedCenterPoint = track.centerline.length - 2;
         refreshForm();
+    });
+    canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const zoomDelta = event.deltaY < 0 ? 1.1 : 0.9;
+        const newZoom = Math.min(Math.max(0.1, state.cameraZoom * zoomDelta), 5.0);
+        // Zoom around mouse
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const basePxX = (event.clientX - rect.left) * scaleX;
+        const basePxY = (event.clientY - rect.top) * scaleY;
+        // Calculate position in world space before zoom
+        const worldX = (basePxX + state.cameraX) / state.cameraZoom;
+        const worldY = (basePxY + state.cameraY) / state.cameraZoom;
+        state.cameraZoom = newZoom;
+        // Keep world coordinate pinned
+        state.cameraX = worldX * state.cameraZoom - basePxX;
+        state.cameraY = worldY * state.cameraZoom - basePxY;
+        draw();
     });
     trackSelect.addEventListener("change", () => {
         state.selectedTrackIndex = Number(trackSelect.value);
@@ -459,6 +534,10 @@ export function mountEditorApp(root) {
     });
     roadWidth.addEventListener("input", () => {
         currentTrack().roadWidth = Math.max(20, Number(roadWidth.value) || 20);
+        refreshForm();
+    });
+    curveTension.addEventListener("input", () => {
+        currentTrack().curveTension = Number(curveTension.value);
         refreshForm();
     });
     spawnX.addEventListener("input", () => {
@@ -544,6 +623,11 @@ export function mountEditorApp(root) {
             file: `${track.id}.json`
         };
         manifestPatch.textContent = JSON.stringify(patch, null, 2);
+    });
+    root.querySelector("#testDriveTrack")?.addEventListener("click", () => {
+        const track = currentTrack();
+        sessionStorage.setItem("swag_test_drive", JSON.stringify(track));
+        window.location.href = normalizeBase(import.meta.env.BASE_URL);
     });
     root.querySelector("#importTrack")?.addEventListener("change", async (event) => {
         const input = event.target;

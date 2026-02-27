@@ -48,7 +48,7 @@ function lerpPoint(a: Vector2, b: Vector2, t: number): Vector2 {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-function catmullRomCentripetal(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: number): Vector2 {
+function catmullRomCentripetal(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: number, tension: number = 1): Vector2 {
   const t0 = 0;
   const t1 = t0 + Math.max(1e-4, distancePow(p0, p1));
   const t2 = t1 + Math.max(1e-4, distancePow(p1, p2));
@@ -58,12 +58,14 @@ function catmullRomCentripetal(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector
   const a1 = lerpPoint(p0, p1, (tt - t0) / (t1 - t0));
   const a2 = lerpPoint(p1, p2, (tt - t1) / (t2 - t1));
   const a3 = lerpPoint(p2, p3, (tt - t2) / (t3 - t2));
-  const b1 = lerpPoint(a1, a2, (tt - t0) / (t2 - t0));
-  const b2 = lerpPoint(a2, a3, (tt - t1) / (t3 - t1));
+
+  // Tension adjusts the distance between the control points. 0.5 is centripetal, >0.5 is tighter, <0.5 is looser
+  const b1 = lerpPoint(a1, a2, ((tt - t0) / (t2 - t0)) * tension + ((tt - t1) / (t2 - t1)) * (1 - tension));
+  const b2 = lerpPoint(a2, a3, ((tt - t1) / (t3 - t1)) * tension + ((tt - t2) / (t3 - t2)) * (1 - tension));
   return lerpPoint(b1, b2, (tt - t1) / (t2 - t1));
 }
 
-function sampleClosedSpline(points: Vector2[]): Vector2[] {
+function sampleClosedSpline(points: Vector2[], tension: number = 1): Vector2[] {
   const n = points.length;
   const sampled: Vector2[] = [];
   for (let i = 0; i < n; i += 1) {
@@ -73,11 +75,12 @@ function sampleClosedSpline(points: Vector2[]): Vector2[] {
     const p3 = points[(i + 2) % n];
 
     const segmentLength = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-    const subdivisions = Math.max(6, Math.min(28, Math.ceil(segmentLength / 26)));
+    // Increased subdivisions for significantly smoother road edges, especially on sharp curves
+    const subdivisions = Math.max(12, Math.min(80, Math.ceil(segmentLength / 10)));
 
     for (let j = 0; j < subdivisions; j += 1) {
       const t = j / subdivisions;
-      sampled.push(catmullRomCentripetal(p0, p1, p2, p3, t));
+      sampled.push(catmullRomCentripetal(p0, p1, p2, p3, t, tension));
     }
   }
   return sampled;
@@ -154,7 +157,8 @@ function offsetJoinPoint(points: Vector2[], index: number, halfWidth: number, si
 
 export function buildTrackGeometry(asset: TrackAssetV1): TrackGeometry {
   const baseCenterline = getClosedCenterline(asset.centerline);
-  const centerline = sampleClosedSpline(baseCenterline);
+  // Always use 1 for stable centripetal behavior, ignoring asset.curveTension
+  const centerline = sampleClosedSpline(baseCenterline, 1);
   const halfWidth = asset.roadWidth / 2;
 
   const leftEdge: Vector2[] = [];

@@ -23,6 +23,10 @@ export class Hud {
     });
   }
 
+  getElements(): Phaser.GameObjects.GameObject[] {
+    return [this.speedText, this.lapText, this.timerText, this.driftText];
+  }
+
   update(speed: number, lap: number, totalLaps: number, elapsedMs: number, drifting: boolean): void {
     const kmh = Math.round(speed * 0.18);
     this.speedText.setText(`Speed: ${kmh} km/h`);

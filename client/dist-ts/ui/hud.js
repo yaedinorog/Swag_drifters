@@ -14,6 +14,9 @@ export class Hud {
             text.setDepth(100);
         });
     }
+    getElements() {
+        return [this.speedText, this.lapText, this.timerText, this.driftText];
+    }
     update(speed, lap, totalLaps, elapsedMs, drifting) {
         const kmh = Math.round(speed * 0.18);
         this.speedText.setText(`Speed: ${kmh} km/h`);

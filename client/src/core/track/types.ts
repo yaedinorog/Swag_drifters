@@ -18,6 +18,7 @@ export interface TrackAssetV1 {
   name: string;
   centerline: Vector2[];
   roadWidth: number;
+  curveTension?: number;
   spawn: { x: number; y: number; heading: number };
   checkpoints: TrackCheckpoint[];
   style: TrackStyle;
