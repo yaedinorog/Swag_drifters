@@ -21,7 +21,7 @@ export class ResultScene extends Phaser.Scene {
         })
             .setOrigin(0.5);
         this.add
-            .text(GAME_WIDTH / 2, 180, `Final Time: ${formatTime(result.finalTimeMs)}\nBest Lap: ${formatTime(result.bestLapMs)}`, {
+            .text(GAME_WIDTH / 2, 180, `Final Time: ${formatTime(result.finalTimeMs)}\nBest Lap: ${formatTime(result.bestLapMs)}\nAvg Speed: ${result.averageSpeedKmh} km/h`, {
             fontFamily: "monospace",
             fontSize: "30px",
             align: "center",

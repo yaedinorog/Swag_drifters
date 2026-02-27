@@ -2,6 +2,7 @@ import { DEFAULT_TRACK_ID } from "../constants";
 import { buildTrackGeometry, isOnTrackFromGeometry } from "./geometry";
 let tracks = [];
 let loaded = false;
+const STORAGE_KEY = "swag_custom_tracks_v1";
 function assertTrackAsset(asset) {
     if (asset.version !== 1) {
         throw new Error(`Unsupported track asset version for '${asset.id}'.`);
@@ -47,6 +48,38 @@ async function loadTrackAsset(baseUrl, item) {
         geometry: buildTrackGeometry(asset)
     };
 }
+function readStoredTracks() {
+    if (typeof localStorage === "undefined") {
+        return [];
+    }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+        return [];
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            console.warn("Stored tracks payload is not an array.");
+            return [];
+        }
+        return parsed;
+    }
+    catch (err) {
+        console.warn("Failed to parse stored tracks.", err);
+        return [];
+    }
+}
+export function saveCustomTracks(assets) {
+    if (typeof localStorage === "undefined") {
+        return;
+    }
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
+    }
+    catch (err) {
+        console.warn("Failed to persist custom tracks.", err);
+    }
+}
 export function injectTestTrack(asset) {
     const testTrack = {
         asset,
@@ -74,7 +107,38 @@ export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL) {
         }
         ids.add(track.asset.id);
     });
-    tracks = loadedTracks;
+    const storedAssets = readStoredTracks();
+    const trackById = new Map(loadedTracks.map((track) => [track.asset.id, track]));
+    const extraTracks = [];
+    storedAssets.forEach((asset) => {
+        try {
+            assertTrackAsset(asset);
+            const runtime = {
+                asset,
+                geometry: buildTrackGeometry(asset)
+            };
+            if (trackById.has(asset.id)) {
+                trackById.set(asset.id, runtime);
+            }
+            else {
+                extraTracks.push(runtime);
+            }
+        }
+        catch (err) {
+            console.warn(`Skipping stored track '${asset.id}'.`, err);
+        }
+    });
+    const mergedTracks = manifest.tracks
+        .map((item) => trackById.get(item.id))
+        .filter((track) => Boolean(track));
+    const mergedIds = new Set(mergedTracks.map((track) => track.asset.id));
+    extraTracks.forEach((track) => {
+        if (!mergedIds.has(track.asset.id)) {
+            mergedTracks.push(track);
+            mergedIds.add(track.asset.id);
+        }
+    });
+    tracks = mergedTracks;
     loaded = true;
 }
 function assertReady() {

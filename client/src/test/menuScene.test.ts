@@ -3,8 +3,8 @@ import { MenuScene } from "../scenes/MenuScene";
 
 describe("MenuScene", () => {
   it("starts level select when clicking button", () => {
-    const scene = new MenuScene() as MenuScene & { scene: { start: ReturnType<typeof vi.fn> } };
-    scene.scene = { start: vi.fn() };
+    const scene = new MenuScene();
+    (scene as unknown as { scene: { start: ReturnType<typeof vi.fn> } }).scene = { start: vi.fn() };
     scene.create();
 
     const button = (scene as unknown as { levelSelectButton?: { emit: (event: string) => void } })
@@ -12,6 +12,6 @@ describe("MenuScene", () => {
     expect(button).toBeTruthy();
     button?.emit("pointerdown");
 
-    expect(scene.scene.start).toHaveBeenCalledWith("level_select");
+    expect((scene as unknown as { scene: { start: ReturnType<typeof vi.fn> } }).scene.start).toHaveBeenCalledWith("level_select");
   });
 });

@@ -10,6 +10,7 @@ import { Hud } from "../ui/hud";
 export class RaceScene extends Phaser.Scene {
     constructor() {
         super("race");
+        this.trackLapDistance = 0;
         this.elapsedMs = 0;
         this.timerStarted = false;
         this.driftMarkCooldownMs = 0;
@@ -24,7 +25,7 @@ export class RaceScene extends Phaser.Scene {
         this.elapsedMs = 0;
         this.timerStarted = false;
         this.driftMarkCooldownMs = 0;
-        this.skidMarks.forEach((mark) => mark.destroy());
+        this.skidMarks.forEach((mark) => mark.sprite.destroy());
         this.skidMarks = [];
         this.drawTrack();
         this.carState = {
@@ -44,6 +45,7 @@ export class RaceScene extends Phaser.Scene {
         this.hud = new Hud(this);
         this.cameras.main.ignore(this.hud.getElements());
         this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
+        this.trackLapDistance = this.computeLapDistance(this.activeTrack);
         const keyboard = this.input.keyboard;
         if (!keyboard) {
             throw new Error("Keyboard input unavailable.");
@@ -66,12 +68,28 @@ export class RaceScene extends Phaser.Scene {
                 keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
             ],
             handbrake: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)],
-            restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+            restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R),
+            escape: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+            pause: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P)
         };
     }
     update(_time, deltaMs) {
         if (Phaser.Input.Keyboard.JustDown(this.controls.restart)) {
             this.scene.restart();
+            return;
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.controls.escape)) {
+            if (sessionStorage.getItem("swag_is_test_drive") === "true") {
+                sessionStorage.removeItem("swag_is_test_drive");
+                const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+                window.location.href = `${base}editor`;
+                return;
+            }
+            this.openPause();
+            return;
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.controls.pause)) {
+            this.openPause();
             return;
         }
         const previousPosition = { ...this.carState.position };
@@ -108,9 +126,11 @@ export class RaceScene extends Phaser.Scene {
         const elapsed = Math.round(this.elapsedMs);
         this.hud.update(driftStep.speed, lapUpdate.state.lapNumber, TOTAL_LAPS, elapsed, driftStep.isDrifting);
         if (lapUpdate.raceCompleted && lapUpdate.state.bestLapMs !== null) {
+            const averageSpeedKmh = this.computeAverageSpeedKmh(elapsed);
             sessionState.result = {
                 finalTimeMs: elapsed,
                 bestLapMs: Math.round(lapUpdate.state.bestLapMs),
+                averageSpeedKmh,
                 trackId: this.activeTrack.asset.id
             };
             this.scene.start("result");
@@ -161,6 +181,8 @@ export class RaceScene extends Phaser.Scene {
         }
     }
     updateDriftFx(isDrifting, deltaMs) {
+        const nowMs = this.time.now;
+        this.cleanupSkidMarks(nowMs);
         this.driftMarkCooldownMs -= deltaMs;
         if (!isDrifting || this.driftMarkCooldownMs > 0) {
             return;
@@ -184,13 +206,45 @@ export class RaceScene extends Phaser.Scene {
             if (this.uiCamera) {
                 this.uiCamera.ignore(mark);
             }
-            this.skidMarks.push(mark);
+            this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
         });
-        if (this.skidMarks.length > 220) {
-            const oldest = this.skidMarks.shift();
-            oldest?.destroy();
+    }
+    openPause() {
+        if (this.scene.isActive("pause") || this.scene.isPaused("race")) {
+            return;
         }
+        this.scene.launch("pause", { from: "race" });
+        this.scene.pause();
+    }
+    cleanupSkidMarks(nowMs) {
+        const cutoff = nowMs - RaceScene.SKID_MARK_LIFETIME_MS;
+        while (this.skidMarks.length > 0 && this.skidMarks[0].createdAtMs <= cutoff) {
+            const oldest = this.skidMarks.shift();
+            oldest?.sprite.destroy();
+        }
+    }
+    computeLapDistance(track) {
+        const points = track.geometry.sampledCenterline;
+        if (points.length < 2) {
+            return 0;
+        }
+        let distance = 0;
+        for (let i = 0; i < points.length; i += 1) {
+            const next = points[(i + 1) % points.length];
+            const current = points[i];
+            distance += Math.hypot(next.x - current.x, next.y - current.y);
+        }
+        return distance;
+    }
+    computeAverageSpeedKmh(elapsedMs) {
+        if (elapsedMs <= 0 || this.trackLapDistance <= 0) {
+            return 0;
+        }
+        const totalDistance = this.trackLapDistance * TOTAL_LAPS;
+        const speed = totalDistance / (elapsedMs / 1000);
+        return Number((speed * 0.18).toFixed(1));
     }
 }
 RaceScene.CAR_SPRITE_HEADING_OFFSET = -Math.PI / 2;
 RaceScene.ROAD_BORDER_PX = 10;
+RaceScene.SKID_MARK_LIFETIME_MS = 4500;

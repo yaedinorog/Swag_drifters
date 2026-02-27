@@ -1,5 +1,5 @@
 import { buildTrackGeometry, isCenterlineClosed, isOnTrackFromGeometry } from "../core/track/geometry";
-import { getTracks } from "../core/track/trackStore";
+import { getTracks, saveCustomTracks } from "../core/track/trackStore";
 function cloneTrack(track) {
     return JSON.parse(JSON.stringify(track));
 }
@@ -76,6 +76,35 @@ export function mountEditorApp(root) {
         isPanning: false,
         lastPanPoint: null
     };
+    let saveTimer = null;
+    const scheduleSave = () => {
+        if (saveTimer !== null) {
+            window.clearTimeout(saveTimer);
+        }
+        saveTimer = window.setTimeout(() => {
+            saveCustomTracks(state.tracks);
+            saveTimer = null;
+        }, 300);
+    };
+    const storedTestDriveBackup = sessionStorage.getItem("swag_test_drive_backup");
+    if (storedTestDriveBackup) {
+        try {
+            const parsed = JSON.parse(storedTestDriveBackup);
+            const idx = state.tracks.findIndex((t) => t.id === parsed.id);
+            if (idx !== -1) {
+                state.tracks[idx] = parsed;
+                state.selectedTrackIndex = idx;
+            }
+            else {
+                state.tracks.push(parsed);
+                state.selectedTrackIndex = state.tracks.length - 1;
+            }
+        }
+        catch (e) {
+            console.error("Failed to restore editor backup", e);
+        }
+        sessionStorage.removeItem("swag_test_drive_backup");
+    }
     root.innerHTML = `
     <div class="editor-shell">
       <aside class="editor-panel">
@@ -103,42 +132,25 @@ export function mountEditorApp(root) {
           <input id="trackName" type="text" />
           <label>Road width</label>
           <input id="roadWidth" type="number" min="20" max="400" step="1" />
-          <label>Curve tension</label>
-          <input id="curveTension" type="range" min="0" max="1" step="0.05" />
         </div>
 
         <div class="editor-section">
-          <h2 class="editor-section-title">Edit Tools</h2>
+          <h2 class="editor-section-title">Tools</h2>
           <label>Mode</label>
           <select id="editMode">
             <option value="centerline">Centerline</option>
             <option value="spawn">Spawn</option>
-            <option value="checkpoint">Checkpoint</option>
+            <option value="checkpoint">Checkpoints</option>
           </select>
 
           <div class="editor-actions-row">
-            <button id="setClosed">Close centerline</button>
-            <button id="deletePoint">Delete point</button>
+            <button id="actionAdd">Add</button>
+            <button id="actionDelete">Delete</button>
+            <button id="actionCloseTrack">Close Track</button>
           </div>
-        </div>
-
-        <div class="editor-section">
-          <h2 class="editor-section-title">Spawn Setup</h2>
-          <label>Spawn X</label>
-          <input id="spawnX" type="number" />
-          <label>Spawn Y</label>
-          <input id="spawnY" type="number" />
-          <label>Spawn heading</label>
-          <input id="spawnHeading" type="number" step="0.01" />
-        </div>
-
-        <div class="editor-section">
-          <h2 class="editor-section-title">Checkpoints</h2>
-          <label>Checkpoints</label>
-          <select id="checkpointSelect"></select>
-          <div class="editor-actions-row">
-            <button id="addCheckpoint">Add CP</button>
-            <button id="removeCheckpoint">Remove CP</button>
+          <div id="spawnHeadingContainer" style="margin-top: 0.5rem; display: none;">
+            <label>Spawn heading</label>
+            <input id="spawnHeading" type="number" step="0.01" />
           </div>
         </div>
 
@@ -165,12 +177,9 @@ export function mountEditorApp(root) {
     const trackId = root.querySelector("#trackId");
     const trackName = root.querySelector("#trackName");
     const roadWidth = root.querySelector("#roadWidth");
-    const curveTension = root.querySelector("#curveTension");
     const editMode = root.querySelector("#editMode");
-    const spawnX = root.querySelector("#spawnX");
-    const spawnY = root.querySelector("#spawnY");
     const spawnHeading = root.querySelector("#spawnHeading");
-    const checkpointSelect = root.querySelector("#checkpointSelect");
+    const spawnHeadingContainer = root.querySelector("#spawnHeadingContainer");
     const validation = root.querySelector("#validation");
     const manifestPatch = root.querySelector("#manifestPatch");
     const canvas = root.querySelector("#editorCanvas");
@@ -189,32 +198,18 @@ export function mountEditorApp(root) {
         });
         trackSelect.value = String(state.selectedTrackIndex);
     };
-    const renderCheckpointSelect = () => {
-        const track = currentTrack();
-        checkpointSelect.innerHTML = "";
-        track.checkpoints.forEach((checkpoint, index) => {
-            const option = document.createElement("option");
-            option.value = String(index);
-            option.textContent = `${index + 1}. ${checkpoint.id}`;
-            checkpointSelect.append(option);
-        });
-        state.selectedCheckpointIndex = Math.min(state.selectedCheckpointIndex, Math.max(track.checkpoints.length - 1, 0));
-        checkpointSelect.value = String(state.selectedCheckpointIndex);
-    };
     const refreshForm = () => {
         const track = currentTrack();
         trackId.value = track.id;
         trackName.value = track.name;
         roadWidth.value = String(track.roadWidth);
-        curveTension.value = String(track.curveTension ?? 0.5);
         editMode.value = state.mode;
-        spawnX.value = track.spawn.x.toFixed(2);
-        spawnY.value = track.spawn.y.toFixed(2);
         spawnHeading.value = track.spawn.heading.toFixed(3);
+        spawnHeadingContainer.style.display = state.mode === "spawn" ? "block" : "none";
         renderTrackSelect();
-        renderCheckpointSelect();
         renderValidation();
         draw();
+        scheduleSave();
     };
     const renderValidation = () => {
         const track = currentTrack();
@@ -301,20 +296,28 @@ export function mountEditorApp(root) {
         });
         ctx.stroke();
         track.centerline.forEach((point, index) => {
-            ctx.fillStyle = state.selectedCenterPoint === index ? "#f59e0b" : "#ffffff";
+            const isSelected = state.selectedCenterPoint === index && state.mode === "centerline";
+            ctx.fillStyle = state.mode === "centerline"
+                ? (isSelected ? "#f59e0b" : "#ffffff")
+                : "rgba(255, 255, 255, 0.3)";
             ctx.beginPath();
             ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
             ctx.fill();
         });
         track.checkpoints.forEach((checkpoint, index) => {
-            ctx.strokeStyle = index === 0 ? "#ffffff" : "#ffcc00";
-            ctx.lineWidth = index === state.selectedCheckpointIndex ? 5 : 3;
+            const isSelected = index === state.selectedCheckpointIndex && state.mode === "checkpoint";
+            ctx.strokeStyle = state.mode === "checkpoint"
+                ? (index === 0 ? "#ffffff" : "#ffcc00")
+                : "rgba(255, 204, 0, 0.3)";
+            if (index === 0 && state.mode !== "checkpoint")
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.lineWidth = isSelected ? 5 : 3;
             ctx.beginPath();
             ctx.moveTo(checkpoint.a.x, checkpoint.a.y);
             ctx.lineTo(checkpoint.b.x, checkpoint.b.y);
             ctx.stroke();
-            ctx.fillStyle = "#111827";
-            ctx.strokeStyle = "#fcd34d";
+            ctx.fillStyle = state.mode === "checkpoint" ? "#111827" : "rgba(17, 24, 39, 0.3)";
+            ctx.strokeStyle = state.mode === "checkpoint" ? "#fcd34d" : "rgba(252, 211, 77, 0.3)";
             ctx.lineWidth = 2;
             [checkpoint.a, checkpoint.b].forEach((point) => {
                 ctx.beginPath();
@@ -401,35 +404,55 @@ export function mountEditorApp(root) {
             refreshForm();
             return;
         }
-        const checkpoint = track.checkpoints[state.selectedCheckpointIndex];
-        const handle = findCheckpointHandle(point, checkpoint);
-        if (handle) {
-            state.draggingCheckpointHandle = handle;
-            return;
+        if (state.mode === "checkpoint") {
+            let clickedCheckpointIndex = null;
+            let clickedHandle = null;
+            let clickedLine = false;
+            for (let i = track.checkpoints.length - 1; i >= 0; i--) {
+                const cp = track.checkpoints[i];
+                const handle = findCheckpointHandle(point, cp);
+                if (handle) {
+                    clickedCheckpointIndex = i;
+                    clickedHandle = handle;
+                    break;
+                }
+                if (distanceToSegment(point, cp.a, cp.b) <= 10) {
+                    clickedCheckpointIndex = i;
+                    clickedLine = true;
+                    break;
+                }
+            }
+            if (clickedCheckpointIndex !== null) {
+                state.selectedCheckpointIndex = clickedCheckpointIndex;
+                if (clickedHandle) {
+                    state.draggingCheckpointHandle = clickedHandle;
+                }
+                else if (clickedLine) {
+                    state.draggingCheckpointLine = true;
+                    state.checkpointLineDragOrigin = point;
+                    state.checkpointLineOriginal = {
+                        a: { ...track.checkpoints[clickedCheckpointIndex].a },
+                        b: { ...track.checkpoints[clickedCheckpointIndex].b }
+                    };
+                }
+                refreshForm();
+                return;
+            }
+            if (!state.draftCheckpointStart) {
+                state.draftCheckpointStart = point;
+                draw();
+                return;
+            }
+            const id = `cp_${String(track.checkpoints.length).padStart(2, "0")}`;
+            track.checkpoints.push({
+                id,
+                a: { ...state.draftCheckpointStart },
+                b: point
+            });
+            state.draftCheckpointStart = null;
+            state.selectedCheckpointIndex = track.checkpoints.length - 1;
+            refreshForm();
         }
-        if (distanceToSegment(point, checkpoint.a, checkpoint.b) <= 10) {
-            state.draggingCheckpointLine = true;
-            state.checkpointLineDragOrigin = point;
-            state.checkpointLineOriginal = {
-                a: { ...checkpoint.a },
-                b: { ...checkpoint.b }
-            };
-            return;
-        }
-        if (!state.draftCheckpointStart) {
-            state.draftCheckpointStart = point;
-            draw();
-            return;
-        }
-        const id = `cp_${String(track.checkpoints.length).padStart(2, "0")}`;
-        track.checkpoints.push({
-            id,
-            a: { ...state.draftCheckpointStart },
-            b: point
-        });
-        state.draftCheckpointStart = null;
-        state.selectedCheckpointIndex = track.checkpoints.length - 1;
-        refreshForm();
     });
     canvas.addEventListener("mousemove", (event) => {
         if (state.isPanning && state.lastPanPoint) {
@@ -536,25 +559,9 @@ export function mountEditorApp(root) {
         currentTrack().roadWidth = Math.max(20, Number(roadWidth.value) || 20);
         refreshForm();
     });
-    curveTension.addEventListener("input", () => {
-        currentTrack().curveTension = Number(curveTension.value);
-        refreshForm();
-    });
-    spawnX.addEventListener("input", () => {
-        currentTrack().spawn.x = Number(spawnX.value) || 0;
-        refreshForm();
-    });
-    spawnY.addEventListener("input", () => {
-        currentTrack().spawn.y = Number(spawnY.value) || 0;
-        refreshForm();
-    });
     spawnHeading.addEventListener("input", () => {
         currentTrack().spawn.heading = Number(spawnHeading.value) || 0;
         refreshForm();
-    });
-    checkpointSelect.addEventListener("change", () => {
-        state.selectedCheckpointIndex = Number(checkpointSelect.value);
-        draw();
     });
     root.querySelector("#createTrack")?.addEventListener("click", () => {
         const nextIndex = state.tracks.length + 1;
@@ -572,7 +579,7 @@ export function mountEditorApp(root) {
         state.selectedTrackIndex = state.tracks.length - 1;
         refreshForm();
     });
-    root.querySelector("#setClosed")?.addEventListener("click", () => {
+    root.querySelector("#actionCloseTrack")?.addEventListener("click", () => {
         const track = currentTrack();
         if (track.centerline.length > 2) {
             const first = track.centerline[0];
@@ -580,35 +587,42 @@ export function mountEditorApp(root) {
             refreshForm();
         }
     });
-    root.querySelector("#deletePoint")?.addEventListener("click", () => {
+    root.querySelector("#actionDelete")?.addEventListener("click", () => {
         const track = currentTrack();
-        if (state.selectedCenterPoint === null || track.centerline.length <= 4) {
-            return;
+        if (state.mode === "centerline") {
+            if (state.selectedCenterPoint === null || track.centerline.length <= 4)
+                return;
+            if (state.selectedCenterPoint === 0 || state.selectedCenterPoint === track.centerline.length - 1)
+                return;
+            track.centerline.splice(state.selectedCenterPoint, 1);
+            state.selectedCenterPoint = null;
         }
-        if (state.selectedCenterPoint === 0 || state.selectedCenterPoint === track.centerline.length - 1) {
-            return;
+        else if (state.mode === "checkpoint") {
+            if (track.checkpoints.length <= 2 || state.selectedCheckpointIndex === 0)
+                return;
+            track.checkpoints.splice(state.selectedCheckpointIndex, 1);
+            state.selectedCheckpointIndex = Math.max(0, state.selectedCheckpointIndex - 1);
         }
-        track.centerline.splice(state.selectedCenterPoint, 1);
-        state.selectedCenterPoint = null;
         refreshForm();
     });
-    root.querySelector("#addCheckpoint")?.addEventListener("click", () => {
+    root.querySelector("#actionAdd")?.addEventListener("click", () => {
         const track = currentTrack();
-        track.checkpoints.push({
-            id: `cp_${String(track.checkpoints.length).padStart(2, "0")}`,
-            a: { x: 620, y: 360 },
-            b: { x: 760, y: 360 }
-        });
-        state.selectedCheckpointIndex = track.checkpoints.length - 1;
-        refreshForm();
-    });
-    root.querySelector("#removeCheckpoint")?.addEventListener("click", () => {
-        const track = currentTrack();
-        if (track.checkpoints.length <= 2 || state.selectedCheckpointIndex === 0) {
-            return;
+        if (state.mode === "centerline") {
+            const idx = state.selectedCenterPoint !== null ? state.selectedCenterPoint : track.centerline.length - 2;
+            const p1 = track.centerline[idx];
+            const p2 = track.centerline[idx + 1] || track.centerline[0];
+            const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+            track.centerline.splice(idx + 1, 0, mid);
+            state.selectedCenterPoint = idx + 1;
         }
-        track.checkpoints.splice(state.selectedCheckpointIndex, 1);
-        state.selectedCheckpointIndex = Math.max(0, state.selectedCheckpointIndex - 1);
+        else if (state.mode === "checkpoint") {
+            track.checkpoints.push({
+                id: `cp_${String(track.checkpoints.length).padStart(2, "0")}`,
+                a: { x: track.spawn.x - 50, y: track.spawn.y },
+                b: { x: track.spawn.x + 50, y: track.spawn.y }
+            });
+            state.selectedCheckpointIndex = track.checkpoints.length - 1;
+        }
         refreshForm();
     });
     root.querySelector("#exportTrack")?.addEventListener("click", () => {
@@ -626,7 +640,9 @@ export function mountEditorApp(root) {
     });
     root.querySelector("#testDriveTrack")?.addEventListener("click", () => {
         const track = currentTrack();
-        sessionStorage.setItem("swag_test_drive", JSON.stringify(track));
+        const trackJson = JSON.stringify(track);
+        sessionStorage.setItem("swag_test_drive", trackJson);
+        sessionStorage.setItem("swag_test_drive_backup", trackJson);
         window.location.href = normalizeBase(import.meta.env.BASE_URL);
     });
     root.querySelector("#importTrack")?.addEventListener("change", async (event) => {
@@ -644,8 +660,8 @@ export function mountEditorApp(root) {
         input.value = "";
     });
     window.addEventListener("keydown", (event) => {
-        if (event.key === "Delete" && state.mode === "centerline") {
-            root.querySelector("#deletePoint")?.click();
+        if (event.key === "Delete") {
+            root.querySelector("#actionDelete")?.click();
         }
     });
     const base = normalizeBase(import.meta.env.BASE_URL);

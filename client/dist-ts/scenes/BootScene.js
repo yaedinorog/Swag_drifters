@@ -19,6 +19,7 @@ export class BootScene extends Phaser.Scene {
             try {
                 const trackAsset = JSON.parse(testDriveData);
                 sessionStorage.removeItem("swag_test_drive");
+                sessionStorage.setItem("swag_is_test_drive", "true");
                 injectTestTrack(trackAsset);
                 sessionState.selectedTrackId = trackAsset.id;
                 this.scene.start("race");

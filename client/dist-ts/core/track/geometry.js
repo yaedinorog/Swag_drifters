@@ -39,7 +39,7 @@ function distancePow(a, b) {
 function lerpPoint(a, b, t) {
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
-function catmullRomCentripetal(p0, p1, p2, p3, t, tension = 0.5) {
+function catmullRomCentripetal(p0, p1, p2, p3, t, tension = 1) {
     const t0 = 0;
     const t1 = t0 + Math.max(1e-4, distancePow(p0, p1));
     const t2 = t1 + Math.max(1e-4, distancePow(p1, p2));
@@ -53,7 +53,7 @@ function catmullRomCentripetal(p0, p1, p2, p3, t, tension = 0.5) {
     const b2 = lerpPoint(a2, a3, ((tt - t1) / (t3 - t1)) * tension + ((tt - t2) / (t3 - t2)) * (1 - tension));
     return lerpPoint(b1, b2, (tt - t1) / (t2 - t1));
 }
-function sampleClosedSpline(points, tension = 0.5) {
+function sampleClosedSpline(points, tension = 1) {
     const n = points.length;
     const sampled = [];
     for (let i = 0; i < n; i += 1) {
@@ -130,8 +130,8 @@ function offsetJoinPoint(points, index, halfWidth, side) {
 }
 export function buildTrackGeometry(asset) {
     const baseCenterline = getClosedCenterline(asset.centerline);
-    // Default to 0.5 if tension is not specified backward compat
-    const centerline = sampleClosedSpline(baseCenterline, asset.curveTension ?? 0.5);
+    // Always use 1 for stable centripetal behavior, ignoring asset.curveTension
+    const centerline = sampleClosedSpline(baseCenterline, 1);
     const halfWidth = asset.roadWidth / 2;
     const leftEdge = [];
     const rightEdge = [];
