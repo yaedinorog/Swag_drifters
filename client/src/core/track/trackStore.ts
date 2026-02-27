@@ -42,10 +42,10 @@ async function loadTrackAsset(baseUrl: string, item: TrackManifestItem): Promise
     loadedAsset.id === item.id
       ? loadedAsset
       : {
-          ...loadedAsset,
-          id: item.id,
-          name: item.name
-        };
+        ...loadedAsset,
+        id: item.id,
+        name: item.name
+      };
   if (loadedAsset.id !== item.id) {
     console.warn(
       `Track asset id mismatch for '${item.file}': manifest id '${item.id}', asset id '${loadedAsset.id}'. Using manifest id.`
@@ -56,6 +56,19 @@ async function loadTrackAsset(baseUrl: string, item: TrackManifestItem): Promise
     asset,
     geometry: buildTrackGeometry(asset)
   };
+}
+
+export function injectTestTrack(asset: TrackAssetV1): void {
+  const testTrack: RuntimeTrack = {
+    asset,
+    geometry: buildTrackGeometry(asset)
+  };
+  const existingIndex = tracks.findIndex(t => t.asset.id === asset.id);
+  if (existingIndex >= 0) {
+    tracks[existingIndex] = testTrack;
+  } else {
+    tracks.push(testTrack);
+  }
 }
 
 export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL): Promise<void> {

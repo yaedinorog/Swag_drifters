@@ -41,6 +41,23 @@ canvas {
   font-size: 13px;
 }
 
+.editor-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.editor-section-title {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  font-weight: bold;
+  color: #93c5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .editor-panel label {
   display: block;
   margin-top: 10px;
@@ -66,7 +83,7 @@ canvas {
 }
 
 .editor-panel button:hover {
-  background: #1e293b;
+  background: #334155;
 }
 
 .editor-actions-row {

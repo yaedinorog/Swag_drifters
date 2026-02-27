@@ -21,6 +21,7 @@ export class RaceScene extends Phaser.Scene {
     right: Phaser.Input.Keyboard.Key[];
     handbrake: Phaser.Input.Keyboard.Key[];
     restart: Phaser.Input.Keyboard.Key;
+    escape: Phaser.Input.Keyboard.Key;
   };
   private carState!: CarState;
   private hud!: Hud;
@@ -94,7 +95,8 @@ export class RaceScene extends Phaser.Scene {
         keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
       ],
       handbrake: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)],
-      restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+      restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R),
+      escape: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
     };
   }
 
@@ -102,6 +104,15 @@ export class RaceScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.controls.restart)) {
       this.scene.restart();
       return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.controls.escape)) {
+      if (sessionStorage.getItem("swag_is_test_drive") === "true") {
+        sessionStorage.removeItem("swag_is_test_drive");
+        const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+        window.location.href = `${base}editor`;
+        return;
+      }
     }
 
     const previousPosition = { ...this.carState.position };

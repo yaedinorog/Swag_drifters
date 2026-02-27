@@ -47,6 +47,19 @@ async function loadTrackAsset(baseUrl, item) {
         geometry: buildTrackGeometry(asset)
     };
 }
+export function injectTestTrack(asset) {
+    const testTrack = {
+        asset,
+        geometry: buildTrackGeometry(asset)
+    };
+    const existingIndex = tracks.findIndex(t => t.asset.id === asset.id);
+    if (existingIndex >= 0) {
+        tracks[existingIndex] = testTrack;
+    }
+    else {
+        tracks.push(testTrack);
+    }
+}
 export async function loadTrackStore(baseUrl = import.meta.env.BASE_URL) {
     const normalizedBase = normalizeBase(baseUrl);
     const manifest = await fetchJson(`${normalizedBase}tracks/manifest.json`);

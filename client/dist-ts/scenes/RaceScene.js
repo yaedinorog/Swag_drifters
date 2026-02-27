@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { CAMERA_BASE_ZOOM, CAMERA_LERP, CAMERA_LOOK_AHEAD_FACTOR, CAMERA_MIN_ZOOM, CAMERA_ZOOM_LERP, TOTAL_LAPS } from "../core/constants";
+import { CAMERA_BASE_ZOOM, CAMERA_LERP, CAMERA_LOOK_AHEAD_FACTOR, CAMERA_MIN_ZOOM, CAMERA_ZOOM_LERP, GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
 import { carHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
 import { buildTrackGeometry } from "../core/track/geometry";
@@ -19,6 +19,8 @@ export class RaceScene extends Phaser.Scene {
         this.activeTrack =
             getTrackById(sessionState.selectedTrackId) ?? getTrackById(getDefaultTrackId());
         this.cameras.main.setBackgroundColor(this.activeTrack.asset.style.grassColor);
+        this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        this.uiCamera.setScroll(0, 0);
         this.elapsedMs = 0;
         this.timerStarted = false;
         this.driftMarkCooldownMs = 0;
@@ -36,9 +38,11 @@ export class RaceScene extends Phaser.Scene {
         this.car.setDisplaySize(36, 50);
         this.car.setDepth(10);
         this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
+        this.uiCamera.ignore(this.car);
         this.cameras.main.centerOn(this.carState.position.x, this.carState.position.y);
         this.cameras.main.setZoom(CAMERA_BASE_ZOOM);
         this.hud = new Hud(this);
+        this.cameras.main.ignore(this.hud.getElements());
         this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
         const keyboard = this.input.keyboard;
         if (!keyboard) {
@@ -152,6 +156,9 @@ export class RaceScene extends Phaser.Scene {
             }
             gfx.lineBetween(checkpoint.a.x, checkpoint.a.y, checkpoint.b.x, checkpoint.b.y);
         });
+        if (this.uiCamera) {
+            this.uiCamera.ignore(gfx);
+        }
     }
     updateDriftFx(isDrifting, deltaMs) {
         this.driftMarkCooldownMs -= deltaMs;
@@ -174,6 +181,9 @@ export class RaceScene extends Phaser.Scene {
                 .setAlpha(0.45)
                 .setDepth(1)
                 .setTint(0x1f1f1f);
+            if (this.uiCamera) {
+                this.uiCamera.ignore(mark);
+            }
             this.skidMarks.push(mark);
         });
         if (this.skidMarks.length > 220) {
