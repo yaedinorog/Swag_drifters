@@ -10,4 +10,3 @@ coverage
 *.sqlite3
 server/server/data/
 client/public/car.png
-tracks/
