@@ -2,3 +2,9 @@ export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
 export const DEFAULT_TRACK_ID = "track_01";
 export const TOTAL_LAPS = 3;
+// Camera Tracking System config
+export const CAMERA_LOOK_AHEAD_FACTOR = 0.35;
+export const CAMERA_LERP = 0.06;
+export const CAMERA_BASE_ZOOM = 1.0;
+export const CAMERA_MIN_ZOOM = 0.7;
+export const CAMERA_ZOOM_LERP = 0.02;

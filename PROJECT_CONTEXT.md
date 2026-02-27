@@ -4,6 +4,16 @@
 
 This repository contains a racing MVP with drifting mechanics, leaderboard support, and a built-in track editor.
 
+## Camera Tracking Config
+
+The game uses a dynamic camera tracking system based on the car's speed and velocity to improve visibility and feel of speed. These variables are defined in `client/src/core/constants.ts`:
+
+- `CAMERA_LOOK_AHEAD_FACTOR` (0.35): How far ahead the camera looks based on the car's current velocity.
+- `CAMERA_LERP` (0.06): Damping factor for camera movement. Lower is smoother but slower.
+- `CAMERA_BASE_ZOOM` (1.0): The camera's default zoom at zero/low speed.
+- `CAMERA_MIN_ZOOM` (0.7): The camera's zoom level at maximum speed.
+- `CAMERA_ZOOM_LERP` (0.02): Damping factor for zooming in and out.
+
 - Client: Phaser 3 + TypeScript + Vite
 - Server: Express + TypeScript + SQLite (`better-sqlite3`)
 - Package manager: npm workspaces

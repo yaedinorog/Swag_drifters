@@ -1,5 +1,5 @@
 ﻿import Phaser from "phaser";
-import { GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
+import { CAMERA_BASE_ZOOM, CAMERA_LERP, CAMERA_LOOK_AHEAD_FACTOR, CAMERA_MIN_ZOOM, CAMERA_ZOOM_LERP, GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
 import { carHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
 import { buildTrackGeometry } from "../core/track/geometry";
@@ -30,6 +30,7 @@ export class RaceScene extends Phaser.Scene {
   private timerStarted = false;
   private driftMarkCooldownMs = 0;
   private skidMarks: Phaser.GameObjects.Image[] = [];
+  private uiCamera!: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
     super("race");
@@ -40,6 +41,8 @@ export class RaceScene extends Phaser.Scene {
       getTrackById(sessionState.selectedTrackId) ?? getTrackById(getDefaultTrackId())!;
 
     this.cameras.main.setBackgroundColor(this.activeTrack.asset.style.grassColor);
+    this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    this.uiCamera.setScroll(0, 0);
     this.elapsedMs = 0;
     this.timerStarted = false;
     this.driftMarkCooldownMs = 0;
@@ -59,8 +62,14 @@ export class RaceScene extends Phaser.Scene {
     this.car.setDisplaySize(36, 50);
     this.car.setDepth(10);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
+    this.uiCamera.ignore(this.car);
+
+    this.cameras.main.centerOn(this.carState.position.x, this.carState.position.y);
+    this.cameras.main.setZoom(CAMERA_BASE_ZOOM);
 
     this.hud = new Hud(this);
+    this.cameras.main.ignore(this.hud.getElements());
+
     this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
 
     const keyboard = this.input.keyboard;
@@ -119,6 +128,19 @@ export class RaceScene extends Phaser.Scene {
     this.car.setPosition(this.carState.position.x, this.carState.position.y);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
 
+    const lookAheadX = this.carState.position.x + this.carState.velocity.x * CAMERA_LOOK_AHEAD_FACTOR;
+    const lookAheadY = this.carState.position.y + this.carState.velocity.y * CAMERA_LOOK_AHEAD_FACTOR;
+
+    const targetScrollX = lookAheadX - this.cameras.main.width / 2;
+    const targetScrollY = lookAheadY - this.cameras.main.height / 2;
+
+    this.cameras.main.scrollX += (targetScrollX - this.cameras.main.scrollX) * CAMERA_LERP;
+    this.cameras.main.scrollY += (targetScrollY - this.cameras.main.scrollY) * CAMERA_LERP;
+
+    const speedFactor = Math.min(1, driftStep.speed / carHandling.maxSpeed);
+    const targetZoom = Phaser.Math.Linear(CAMERA_BASE_ZOOM, CAMERA_MIN_ZOOM, speedFactor);
+    this.cameras.main.zoom += (targetZoom - this.cameras.main.zoom) * CAMERA_ZOOM_LERP;
+
     this.updateDriftFx(driftStep.isDrifting, deltaMs);
 
     const lapUpdate = this.lapTracker.update(previousPosition, this.carState.position, this.elapsedMs);
@@ -152,12 +174,16 @@ export class RaceScene extends Phaser.Scene {
     const asphaltColor = this.colorToNumber(this.activeTrack.asset.style.asphaltColor);
     const borderColor = this.colorToNumber(this.activeTrack.asset.style.borderColor);
 
+    const bounds = this.activeTrack.geometry.bounds;
+    const margin = 2000;
+
     gfx.fillStyle(grassColor, 1);
-    gfx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    gfx.fillRect(bounds.minX - margin, bounds.minY - margin, (bounds.maxX - bounds.minX) + margin * 2, (bounds.maxY - bounds.minY) + margin * 2);
 
     gfx.fillStyle(0x70cda9, 0.28);
-    for (let x = 0; x < GAME_WIDTH; x += 64) {
-      gfx.fillRect(x, 0, 32, GAME_HEIGHT);
+    const startX = Math.floor((bounds.minX - margin) / 64) * 64;
+    for (let x = startX; x < bounds.maxX + margin; x += 64) {
+      gfx.fillRect(x, bounds.minY - margin, 32, (bounds.maxY - bounds.minY) + margin * 2);
     }
 
     const borderGeometry = buildTrackGeometry({
@@ -185,6 +211,10 @@ export class RaceScene extends Phaser.Scene {
       }
       gfx.lineBetween(checkpoint.a.x, checkpoint.a.y, checkpoint.b.x, checkpoint.b.y);
     });
+
+    if (this.uiCamera) {
+      this.uiCamera.ignore(gfx);
+    }
   }
 
   private updateDriftFx(isDrifting: boolean, deltaMs: number): void {
@@ -210,6 +240,9 @@ export class RaceScene extends Phaser.Scene {
         .setAlpha(0.45)
         .setDepth(1)
         .setTint(0x1f1f1f);
+      if (this.uiCamera) {
+        this.uiCamera.ignore(mark);
+      }
       this.skidMarks.push(mark);
     });
 
