@@ -23,6 +23,7 @@ export class RaceScene extends Phaser.Scene {
     handbrake: Phaser.Input.Keyboard.Key[];
     restart: Phaser.Input.Keyboard.Key;
     escape: Phaser.Input.Keyboard.Key;
+    pause: Phaser.Input.Keyboard.Key;
   };
   private carState!: CarState;
   private hud!: Hud;
@@ -99,7 +100,8 @@ export class RaceScene extends Phaser.Scene {
       ],
       handbrake: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)],
       restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R),
-      escape: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+      escape: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
+      pause: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P)
     };
   }
 
@@ -116,6 +118,13 @@ export class RaceScene extends Phaser.Scene {
         window.location.href = `${base}editor`;
         return;
       }
+      this.openPause();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.controls.pause)) {
+      this.openPause();
+      return;
     }
 
     const previousPosition = { ...this.carState.position };
@@ -263,6 +272,14 @@ export class RaceScene extends Phaser.Scene {
       }
       this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
     });
+  }
+
+  private openPause(): void {
+    if (this.scene.isActive("pause") || this.scene.isPaused("race")) {
+      return;
+    }
+    this.scene.launch("pause", { from: "race" });
+    this.scene.pause();
   }
 
   private cleanupSkidMarks(nowMs: number): void {
