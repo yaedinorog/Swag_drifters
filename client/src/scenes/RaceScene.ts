@@ -1,6 +1,6 @@
 ﻿import Phaser from "phaser";
 import { CAMERA_BASE_ZOOM, CAMERA_LERP, CAMERA_LOOK_AHEAD_FACTOR, CAMERA_MIN_ZOOM, CAMERA_ZOOM_LERP, GAME_HEIGHT, GAME_WIDTH, TOTAL_LAPS } from "../core/constants";
-import { carHandling } from "../core/physics/carHandling";
+import { DEFAULT_CAR, getEffectiveHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
 import { buildTrackGeometry } from "../core/track/geometry";
 import { LapTracker } from "../core/track/lapTracker";
@@ -35,6 +35,11 @@ export class RaceScene extends Phaser.Scene {
   private driftMarkCooldownMs = 0;
   private skidMarks: { sprite: Phaser.GameObjects.Image; createdAtMs: number }[] = [];
   private uiCamera!: Phaser.Cameras.Scene2D.Camera;
+  private turboCharge = 0;
+  private turboActive = false;
+  private turboExhausted = false;
+  private isDrifting = false;
+  private shiftKey!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super("race");
@@ -50,6 +55,10 @@ export class RaceScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.timerStarted = false;
     this.driftMarkCooldownMs = 0;
+    this.turboCharge = 0;
+    this.turboActive = false;
+    this.turboExhausted = false;
+    this.isDrifting = false;
     this.skidMarks.forEach((mark) => mark.sprite.destroy());
     this.skidMarks = [];
     this.drawTrack();
@@ -103,6 +112,7 @@ export class RaceScene extends Phaser.Scene {
       escape: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
       pause: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P)
     };
+    this.shiftKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
   }
 
   update(_time: number, deltaMs: number): void {
@@ -137,9 +147,32 @@ export class RaceScene extends Phaser.Scene {
       handbrake: pressed(this.controls.handbrake)
     };
 
+    // Turbo charge: fill from drifting, drain when Shift held
+    if (this.isDrifting) {
+      this.turboCharge = Math.min(
+        this.turboCharge + dt * DEFAULT_CAR.turbo.fillRate,
+        DEFAULT_CAR.turbo.maxCharge
+      );
+    }
+    // Exhausted state clears only after releasing Shift and rebuilding ≥20% charge
+    const minReactivate = DEFAULT_CAR.turbo.maxCharge * 0.1;
+    if (this.turboExhausted && this.turboCharge >= minReactivate) {
+      this.turboExhausted = false;
+    }
+    this.turboActive = this.shiftKey.isDown && this.turboCharge > 0 && !this.turboExhausted;
+    if (this.turboActive) {
+      this.turboCharge = Math.max(this.turboCharge - dt, 0);
+      if (this.turboCharge === 0) {
+        this.turboExhausted = true;
+        this.turboActive = false;
+      }
+    }
+
     const onTrack = isOnTrack(this.carState.position.x, this.carState.position.y, this.activeTrack);
-    const driftStep = stepDriftModel(this.carState, input, dt, carHandling, !onTrack);
+    const effectiveHandling = getEffectiveHandling(DEFAULT_CAR, this.turboActive);
+    const driftStep = stepDriftModel(this.carState, input, dt, effectiveHandling, !onTrack);
     this.carState = driftStep.state;
+    this.isDrifting = driftStep.isDrifting;
 
     if (!this.timerStarted && driftStep.speed > 2) {
       this.timerStarted = true;
@@ -160,7 +193,7 @@ export class RaceScene extends Phaser.Scene {
     this.cameras.main.scrollX += (targetScrollX - this.cameras.main.scrollX) * CAMERA_LERP;
     this.cameras.main.scrollY += (targetScrollY - this.cameras.main.scrollY) * CAMERA_LERP;
 
-    const speedFactor = Math.min(1, driftStep.speed / carHandling.maxSpeed);
+    const speedFactor = Math.min(1, driftStep.speed / DEFAULT_CAR.handling.maxSpeed);
     const targetZoom = Phaser.Math.Linear(CAMERA_BASE_ZOOM, CAMERA_MIN_ZOOM, speedFactor);
     this.cameras.main.zoom += (targetZoom - this.cameras.main.zoom) * CAMERA_ZOOM_LERP;
 
@@ -174,7 +207,10 @@ export class RaceScene extends Phaser.Scene {
       lapUpdate.state.lapNumber,
       TOTAL_LAPS,
       elapsed,
-      driftStep.isDrifting
+      driftStep.isDrifting,
+      this.turboCharge,
+      DEFAULT_CAR.turbo.maxCharge,
+      this.turboActive
     );
 
     if (lapUpdate.raceCompleted && lapUpdate.state.bestLapMs !== null) {

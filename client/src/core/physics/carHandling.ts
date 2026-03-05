@@ -23,16 +23,47 @@ export interface CarHandlingConfig {
   offTrackDamping: number;
 }
 
-export const carHandling: CarHandlingConfig = {
-  acceleration: 420, 
-  brakingForce: 460,
-  drag: 0.65,
-  baseGrip: 2,
-  driftGrip: 0.5,
-  handbrakeGripPenalty: 0.45,
-  maxSpeed: 700,
-  maxSteerRate: 3.7,
-  turnResponse: 5.2,
-  driftThreshold: 55,
-  offTrackDamping: 0.95
+export interface TurboConfig {
+  // Доля секунды дрифта, которая конвертируется в секунду турбо (0.2 = 20%).
+  fillRate: number;
+  // Максимальный заряд турбо в секундах.
+  maxCharge: number;
+  // Параметры carHandling, которые меняются при активном турбо (остальные — без изменений).
+  handling: Partial<CarHandlingConfig>;
+}
+
+export interface CarConfig {
+  handling: CarHandlingConfig;
+  turbo: TurboConfig;
+}
+
+export const DEFAULT_CAR: CarConfig = {
+  handling: {
+    acceleration: 420,
+    brakingForce: 460,
+    drag: 0.65,
+    baseGrip: 2,
+    driftGrip: 0.5,
+    handbrakeGripPenalty: 0.45,
+    maxSpeed: 700,
+    maxSteerRate: 3.7,
+    turnResponse: 5.2,
+    driftThreshold: 55,
+    offTrackDamping: 0.95
+  },
+  turbo: {
+    fillRate: 0.2,
+    maxCharge: 5,
+    handling: {
+      acceleration: 620
+    }
+  }
 };
+
+export function getEffectiveHandling(car: CarConfig, turboActive: boolean): CarHandlingConfig {
+  if (!turboActive) return car.handling;
+  return { ...car.handling, ...car.turbo.handling };
+}
+
+// Backward-compat alias used by existing imports
+export const carHandling = DEFAULT_CAR.handling;
