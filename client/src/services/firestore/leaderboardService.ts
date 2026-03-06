@@ -6,9 +6,8 @@ import {
   limit,
   orderBy,
   query,
-  serverTimestamp,
   setDoc
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import type { LeaderboardEntry } from "../../core/types";
 import { db } from "../firebase";
 
@@ -56,8 +55,8 @@ export async function submitScore(
   const existing = await getDoc(ref);
 
   if (existing.exists() && (existing.data().timeMs as number) <= timeMs) {
-    return; // existing record is already equal or better
+    return;
   }
 
-  await setDoc(ref, { playerName, timeMs, createdAt: serverTimestamp() });
+  await setDoc(ref, { playerName, timeMs, createdAt: new Date() });
 }
