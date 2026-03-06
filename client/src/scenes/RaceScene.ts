@@ -40,6 +40,7 @@ export class RaceScene extends Phaser.Scene {
   private turboExhausted = false;
   private isDrifting = false;
   private shiftKey!: Phaser.Input.Keyboard.Key;
+  private turboFlame!: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor() {
     super("race");
@@ -76,6 +77,43 @@ export class RaceScene extends Phaser.Scene {
     this.car.setDepth(10);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
     this.uiCamera.ignore(this.car);
+
+    // Flame particle texture: soft elongated ellipse (vertical, 8×20px)
+    // White so tint applies cleanly; three concentric layers for soft edges
+    const fGfx = this.make.graphics();
+    fGfx.fillStyle(0xffffff, 0.12);
+    fGfx.fillEllipse(4, 10, 8, 20);
+    fGfx.fillStyle(0xffffff, 0.45);
+    fGfx.fillEllipse(4, 10, 5, 12);
+    fGfx.fillStyle(0xffffff, 1.0);
+    fGfx.fillEllipse(4, 10, 2.5, 6);
+    fGfx.generateTexture("flame_particle", 8, 20);
+    fGfx.destroy();
+
+    this.turboFlame = this.add.particles(
+      this.carState.position.x,
+      this.carState.position.y,
+      "flame_particle",
+      {
+        // Short-lived so they cluster tightly around the exhaust
+        lifespan: { min: 80, max: 210 },
+        // Velocity along car's backward axis + small lateral spread
+        velocityX: { onEmit: () => Math.cos(this.carState.heading + Math.PI) * (110 + Math.random() * 140) + (Math.random() - 0.5) * 30 },
+        velocityY: { onEmit: () => Math.sin(this.carState.heading + Math.PI) * (110 + Math.random() * 140) + (Math.random() - 0.5) * 30 },
+        // Rotate ellipse so its long axis aligns with travel direction
+        rotate: { onEmit: () => Phaser.Math.RadToDeg(this.carState.heading + Math.PI / 2) },
+        scale: { start: 1.0, end: 0 },
+        alpha: { start: 1.0, end: 0 },
+        // White-hot core → cyan → blue trailing edge
+        tint: [0xffffff, 0xccf4ff, 0x44ccff, 0x0099ff, 0x0044ff],
+        blendMode: Phaser.BlendModes.ADD,
+        frequency: 10,
+        quantity: 5,
+        emitting: false
+      } as Phaser.Types.GameObjects.Particles.ParticleEmitterConfig
+    );
+    this.turboFlame.setDepth(9);
+    this.uiCamera.ignore(this.turboFlame);
 
     this.cameras.main.centerOn(this.carState.position.x, this.carState.position.y);
     this.cameras.main.setZoom(CAMERA_BASE_ZOOM);
@@ -154,9 +192,8 @@ export class RaceScene extends Phaser.Scene {
         DEFAULT_CAR.turbo.maxCharge
       );
     }
-    // Exhausted state clears only after releasing Shift and rebuilding ≥20% charge
-    const minReactivate = DEFAULT_CAR.turbo.maxCharge * 0.1;
-    if (this.turboExhausted && this.turboCharge >= minReactivate) {
+    // Exhausted state clears when Shift is released
+    if (this.turboExhausted && !this.shiftKey.isDown) {
       this.turboExhausted = false;
     }
     this.turboActive = this.shiftKey.isDown && this.turboCharge > 0 && !this.turboExhausted;
@@ -183,6 +220,15 @@ export class RaceScene extends Phaser.Scene {
 
     this.car.setPosition(this.carState.position.x, this.carState.position.y);
     this.car.rotation = this.carState.heading + RaceScene.CAR_SPRITE_HEADING_OFFSET;
+
+    const flameX = this.carState.position.x - Math.cos(this.carState.heading) * 24;
+    const flameY = this.carState.position.y - Math.sin(this.carState.heading) * 24;
+    this.turboFlame.setPosition(flameX, flameY);
+    if (this.turboActive && !this.turboFlame.emitting) {
+      this.turboFlame.start();
+    } else if (!this.turboActive && this.turboFlame.emitting) {
+      this.turboFlame.stop();
+    }
 
     const lookAheadX = this.carState.position.x + this.carState.velocity.x * CAMERA_LOOK_AHEAD_FACTOR;
     const lookAheadY = this.carState.position.y + this.carState.velocity.y * CAMERA_LOOK_AHEAD_FACTOR;

@@ -1,10 +1,10 @@
 import Phaser from "phaser";
 import { formatTime } from "../services/api/leaderboardApi";
 
-const TURBO_BAR_WIDTH = 120;
-const TURBO_BAR_HEIGHT = 12;
-const TURBO_BAR_X = 20;
-const TURBO_BAR_Y = 145;
+const TURBO_BAR_W = 21;
+const TURBO_BAR_H = 500;
+const TURBO_X = 27;      // center-x of vertical bar
+const TURBO_Y_TOP = 170; // bar top: centered vertically on 720px screen
 
 export class Hud {
   private readonly speedText: Phaser.GameObjects.Text;
@@ -26,34 +26,34 @@ export class Hud {
     });
     this.driftText.setVisible(false);
 
-    this.turboLabel = scene.add.text(TURBO_BAR_X, TURBO_BAR_Y - 18, "TURBO", {
+    this.turboLabel = scene.add.text(TURBO_X, TURBO_Y_TOP - 8, "TURBO", {
       ...this.getStyle(),
-      fontSize: "14px",
+      fontSize: "13px",
       color: "#88aaff"
-    });
+    }).setOrigin(0.5, 1);
 
     this.turboBarBg = scene.add.rectangle(
-      TURBO_BAR_X + TURBO_BAR_WIDTH / 2,
-      TURBO_BAR_Y + TURBO_BAR_HEIGHT / 2,
-      TURBO_BAR_WIDTH,
-      TURBO_BAR_HEIGHT,
+      TURBO_X,
+      TURBO_Y_TOP + TURBO_BAR_H / 2,
+      TURBO_BAR_W,
+      TURBO_BAR_H,
       0x222244
     );
 
     this.turboBarFill = scene.add.rectangle(
-      TURBO_BAR_X,
-      TURBO_BAR_Y + TURBO_BAR_HEIGHT / 2,
+      TURBO_X,
+      TURBO_Y_TOP + TURBO_BAR_H,
+      TURBO_BAR_W,
       0,
-      TURBO_BAR_HEIGHT,
       0x4488ff
     );
-    this.turboBarFill.setOrigin(0, 0.5);
+    this.turboBarFill.setOrigin(0.5, 1);
 
-    this.turboActiveText = scene.add.text(TURBO_BAR_X + TURBO_BAR_WIDTH + 8, TURBO_BAR_Y - 4, "BOOST!", {
+    this.turboActiveText = scene.add.text(TURBO_X, TURBO_Y_TOP + TURBO_BAR_H + 8, "BOOST!", {
       ...this.getStyle(),
-      fontSize: "14px",
+      fontSize: "13px",
       color: "#00ffff"
-    });
+    }).setOrigin(0.5, 0);
     this.turboActiveText.setVisible(false);
 
     [
@@ -101,8 +101,9 @@ export class Hud {
     this.driftText.setVisible(drifting);
 
     const ratio = turboMax > 0 ? Math.min(turboCharge / turboMax, 1) : 0;
-    this.turboBarFill.setSize(TURBO_BAR_WIDTH * ratio, TURBO_BAR_HEIGHT);
+    this.turboBarFill.setSize(TURBO_BAR_W, TURBO_BAR_H * ratio);
     this.turboBarFill.setFillStyle(turboActive ? 0x00ffff : 0x4488ff);
+    this.turboLabel.setColor(turboActive ? "#00ffff" : "#88aaff");
     this.turboActiveText.setVisible(turboActive);
   }
 

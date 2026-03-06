@@ -21,11 +21,19 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 300, "W/S or Up/Down: Throttle & Brake\nA/D or Left/Right: Steer\nSpace: Handbrake", {
+      .text(GAME_WIDTH / 2, 290, [
+        "W / S   Throttle & Brake",
+        "A / D   Steer",
+        "SPACE   Handbrake",
+        "SHIFT   Turbo boost",
+        "",
+        "Drift fills the turbo bar"
+      ].join("\n"), {
         fontFamily: "monospace",
-        fontSize: "24px",
+        fontSize: "18px",
         align: "center",
-        color: "#f5f5f5"
+        color: "#c8d8e8",
+        lineSpacing: 6
       })
       .setOrigin(0.5);
 
