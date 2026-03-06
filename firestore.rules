@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /leaderboard/{trackId}/scores/{scoreId} {
+      allow read: if true;
+      allow create: if
+        request.resource.data.keys().hasAll(['playerName','timeMs','createdAt']) &&
+        request.resource.data.playerName is string &&
+        request.resource.data.playerName == scoreId &&
+        request.resource.data.playerName.size() >= 3 &&
+        request.resource.data.playerName.size() <= 16 &&
+        request.resource.data.playerName.matches('[A-Za-z0-9_ ]+') &&
+        request.resource.data.timeMs is number &&
+        request.resource.data.timeMs >= 10000 &&
+        request.resource.data.timeMs <= 3600000;
+      allow update: if
+        request.resource.data.playerName == resource.data.playerName &&
+        request.resource.data.timeMs is number &&
+        request.resource.data.timeMs >= 10000 &&
+        request.resource.data.timeMs <= 3600000 &&
+        request.resource.data.timeMs < resource.data.timeMs;
+      allow delete: if false;
+    }
+  }
+}
