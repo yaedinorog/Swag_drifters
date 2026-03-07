@@ -53,7 +53,7 @@ export const DEFAULT_CAR: CarConfig = {
   },
   turbo: {
     fillRate: 0.2,
-    maxCharge: 5,
+    maxCharge: 3,
     handling: {
       acceleration: 620
     }

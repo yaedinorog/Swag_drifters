@@ -41,6 +41,7 @@ export class RaceScene extends Phaser.Scene {
   private isDrifting = false;
   private shiftKey!: Phaser.Input.Keyboard.Key;
   private turboFlame!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private turboArcGfx!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super("race");
@@ -120,6 +121,10 @@ export class RaceScene extends Phaser.Scene {
 
     this.hud = new Hud(this);
     this.cameras.main.ignore(this.hud.getElements());
+
+    this.turboArcGfx = this.add.graphics();
+    this.turboArcGfx.setDepth(11);
+    this.uiCamera.ignore(this.turboArcGfx);
 
     this.lapTracker = new LapTracker(this.activeTrack, 0, TOTAL_LAPS);
     this.trackLapDistance = this.computeLapDistance(this.activeTrack);
@@ -253,11 +258,13 @@ export class RaceScene extends Phaser.Scene {
       lapUpdate.state.lapNumber,
       TOTAL_LAPS,
       elapsed,
-      driftStep.isDrifting,
-      this.turboCharge,
-      DEFAULT_CAR.turbo.maxCharge,
-      this.turboActive
+      driftStep.isDrifting
     );
+
+    const turboRatio = DEFAULT_CAR.turbo.maxCharge > 0
+      ? Math.min(this.turboCharge / DEFAULT_CAR.turbo.maxCharge, 1)
+      : 0;
+    this.updateTurboArc(turboRatio, this.turboActive, this.turboExhausted);
 
     if (lapUpdate.raceCompleted && lapUpdate.state.bestLapMs !== null) {
       const averageSpeedKmh = this.computeAverageSpeedKmh(elapsed);
@@ -354,6 +361,41 @@ export class RaceScene extends Phaser.Scene {
       }
       this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
     });
+  }
+
+  private updateTurboArc(ratio: number, active: boolean, exhausted: boolean): void {
+    const gfx = this.turboArcGfx;
+    const cx = this.carState.position.x;
+    const BAR_Y = this.carState.position.y + 42;
+    const HALF_W = 24;
+
+    gfx.clear();
+
+    // Background
+    gfx.lineStyle(3, 0x111133, 0.5);
+    gfx.beginPath();
+    gfx.moveTo(cx - HALF_W, BAR_Y);
+    gfx.lineTo(cx + HALF_W, BAR_Y);
+    gfx.strokePath();
+
+    if (ratio > 0) {
+      const color = exhausted ? 0xff3333 : active ? 0x00ffff : 0x4488ff;
+      const fillW = HALF_W * 2 * ratio;
+
+      if (active) {
+        gfx.lineStyle(7, 0x0066ff, 0.2);
+        gfx.beginPath();
+        gfx.moveTo(cx - HALF_W, BAR_Y);
+        gfx.lineTo(cx - HALF_W + fillW, BAR_Y);
+        gfx.strokePath();
+      }
+
+      gfx.lineStyle(3, color, 0.9);
+      gfx.beginPath();
+      gfx.moveTo(cx - HALF_W, BAR_Y);
+      gfx.lineTo(cx - HALF_W + fillW, BAR_Y);
+      gfx.strokePath();
+    }
   }
 
   private openPause(): void {
