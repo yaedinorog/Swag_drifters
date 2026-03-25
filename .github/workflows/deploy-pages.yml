@@ -36,6 +36,8 @@ jobs:
 
       - name: Build client
         run: npm --workspace client run build -- --base=/${{ github.event.repository.name }}/
+        env:
+          VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

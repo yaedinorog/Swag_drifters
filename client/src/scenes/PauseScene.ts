@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../core/constants";
+import { disconnectSocket, getSocket } from "../services/socket";
+import { sessionState } from "../state/session";
 
 interface PauseSceneData {
   from?: string;
@@ -87,6 +89,12 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private resume(fromScene: string): void {
+    if (sessionState.online?.active) {
+      // Server will broadcast game_resumed; RaceScene handles the actual resume
+      try { getSocket().emit("resume_request"); } catch { /* socket gone */ }
+      this.scene.stop();
+      return;
+    }
     this.scene.stop();
     if (this.scene.isPaused(fromScene)) {
       this.scene.resume(fromScene);
@@ -94,14 +102,30 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private gotoLevelSelect(fromScene: string): void {
+    if (sessionState.online?.active) {
+      try { getSocket().emit("resume_request"); } catch { /* socket gone */ }
+    }
     this.scene.stop(fromScene);
     this.scene.stop();
-    this.scene.start("level_select");
+    if (sessionState.online) {
+      try { disconnectSocket(); } catch { /* socket gone */ }
+      sessionState.online = null;
+      this.scene.start("menu");
+    } else {
+      this.scene.start("level_select");
+    }
   }
 
   private gotoMenu(fromScene: string): void {
+    if (sessionState.online?.active) {
+      try { getSocket().emit("resume_request"); } catch { /* socket gone */ }
+    }
     this.scene.stop(fromScene);
     this.scene.stop();
+    if (sessionState.online) {
+      try { disconnectSocket(); } catch { /* socket gone */ }
+      sessionState.online = null;
+    }
     this.scene.start("menu");
   }
 }
