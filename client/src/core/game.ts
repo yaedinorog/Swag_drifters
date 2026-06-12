@@ -6,6 +6,9 @@ import { LevelSelectScene } from "../scenes/LevelSelectScene";
 import { RaceScene } from "../scenes/RaceScene";
 import { ResultScene } from "../scenes/ResultScene";
 import { PauseScene } from "../scenes/PauseScene";
+import { MultiplayerLobbyScene } from "../scenes/MultiplayerLobbyScene";
+import { MultiplayerRaceScene } from "../scenes/MultiplayerRaceScene";
+import { MultiplayerResultScene } from "../scenes/MultiplayerResultScene";
 
 export function createGame(container: HTMLElement): Phaser.Game {
   return new Phaser.Game({
@@ -14,7 +17,10 @@ export function createGame(container: HTMLElement): Phaser.Game {
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     backgroundColor: "#0b1320",
-    scene: [BootScene, MenuScene, LevelSelectScene, RaceScene, ResultScene, PauseScene],
+    scene: [
+      BootScene, MenuScene, LevelSelectScene, RaceScene, ResultScene, PauseScene,
+      MultiplayerLobbyScene, MultiplayerRaceScene, MultiplayerResultScene,
+    ],
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH

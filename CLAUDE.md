@@ -31,7 +31,7 @@ URLs: game `http://localhost:5173/`, editor `http://localhost:5173/editor`, API 
 
 ### Client (`client/src/`)
 - **`core/`** — Physics (`driftModel.ts`, `carHandling.ts`), track geometry/lap tracking, shared types and constants.
-- **`scenes/`** — Phaser scenes: `BootScene` → `MenuScene` → `LevelSelectScene` → `RaceScene` → `ResultScene`. `PauseScene` overlays during race.
+- **`scenes/`** — Phaser scenes: `BootScene` → `MenuScene` → `LevelSelectScene` → `RaceScene` → `ResultScene`. `PauseScene` overlays during race. Multiplayer: `MultiplayerLobbyScene` → `MultiplayerRaceScene` → `MultiplayerResultScene`.
 - **`editor/editorApp.ts`** — Track editor UI (separate entry point).
 - **`services/firebase.ts`** — Firebase init, exports `db` (Firestore instance).
 - **`services/firestore/leaderboardService.ts`** — `getTopScores`, `getPlayerBest`, `submitScore`. Schema: `leaderboard/{trackId}/scores/{docId}`.
@@ -43,7 +43,14 @@ URLs: game `http://localhost:5173/`, editor `http://localhost:5173/editor`, API 
 Bootstrap (`main.ts`): loads track store from manifest → routes to game or editor based on URL path.
 
 ### Server (`server/src/`)
-Minimal — just `app.ts` with a `/healthz` endpoint. SQLite leaderboard and all related routes/services were removed when the leaderboard moved to Firebase Firestore.
+Express + Socket.io v4. Entry: `index.ts` creates `http.Server`, attaches `attachSocketIO()` from `socket/index.ts`.
+- `app.ts` — Express with `/healthz` only.
+- `socket/index.ts` — Socket.io event handlers (joinRoom, playerInput, startRace, pickTrack, disconnect).
+- `socket/roomManager.ts` — `Map<code, Room>`, phases: lobby/countdown/racing/results, staggered spawns.
+- `socket/gameLoop.ts` — 60hz `setInterval` per room, broadcasts snapshots at 20hz.
+- `socket/collision.ts` — circle hitbox (r=18px), elastic impulse on overlap.
+- `physics/` — copy of `driftModel.ts`, `carHandling.ts`, `types.ts` (no Phaser dependency).
+- `track/` — `trackLoader.ts` reads `client/public/tracks/`, `lapTracker.ts` ported from client.
 
 ### Leaderboard (Firebase Firestore)
 - **Project**: `swag-drifters-leaderboard`, config hardcoded in `client/src/services/firebase.ts` (public by design, no secrets).
@@ -68,6 +75,34 @@ Minimal — just `app.ts` with a `/healthz` endpoint. SQLite leaderboard and all
 - Keep domain code inside package boundaries — do not import server code into client.
 - Test files: `*.test.ts`. Client tests in `client/src/test/`; server tests near routes.
 
+## Multiplayer Architecture
+
+Server-authoritative physics over Socket.io v4 (added to existing Express). Server runs `driftModel.ts` for all cars, broadcasts snapshots. Client predicts own car locally, interpolates remote cars.
+
+### Room system
+- 4-digit code: type to join (exists) or create (new). Up to 6 players. Destroyed when all leave.
+- Host = first player in room. Host presses Start and picks next track between rounds.
+- Disconnected player's car disappears; rejoins next round.
+
+### Network protocol
+- Client → Server (60fps): `{ seq, throttle, brake, steer, handbrake }`
+- Server → Client (20fps snapshots): `{ seq, cars: [{ id, x, y, heading, vx, vy, lapNumber }] }`
+- Events: `joinRoom / roomState / playerJoined / playerLeft / startCountdown / raceStart / lapComplete / playerFinished / raceEnd`
+
+### New files (multiplayer)
+- `server/src/socket/index.ts` — Socket.io setup, event handlers
+- `server/src/socket/roomManager.ts` — room state, player management
+- `server/src/socket/gameLoop.ts` — 60hz physics tick for all cars in a room
+- `server/src/socket/collision.ts` — circle-based car-car collision, elastic impulse
+- `client/src/services/socket/socketClient.ts` — Socket.io client singleton
+- `client/src/scenes/MultiplayerLobbyScene.ts` — room code entry + player list
+- `client/src/scenes/MultiplayerRaceScene.ts` — race with prediction + remote interpolation
+- `client/src/scenes/MultiplayerResultScene.ts` — results, host picks next track
+- `shared/socketEvents.ts` — shared event type constants (used by both client and server)
+
+### Deployment note
+Server deployed to Render.com free tier. **No keep-alive pings** — cold start on first connection is acceptable. Free tier sleeps after 15 min inactivity.
+
 ## Deployment
 
-GitHub Actions (`.github/workflows/deploy-pages.yml`) deploys client to GitHub Pages on push to `main`. The server is not deployed — it's only used for local development. The leaderboard runs entirely client-side via Firebase Firestore.
+GitHub Actions (`.github/workflows/deploy-pages.yml`) deploys client to GitHub Pages on push to `main`. The server is deployed to Render.com (free tier). The leaderboard runs entirely client-side via Firebase Firestore.

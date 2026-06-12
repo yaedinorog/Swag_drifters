@@ -50,8 +50,20 @@ export class MenuScene extends Phaser.Scene {
 
     this.levelSelectButton.on("pointerdown", this.handleLevelSelect, this);
 
+    this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 210, "[ MULTIPLAYER ]", {
+        fontFamily: "monospace",
+        fontSize: "28px",
+        color: "#4ade80",
+        backgroundColor: "#172034",
+        padding: { left: 12, right: 12, top: 6, bottom: 6 }
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.scene.start("multiplayer_lobby"), this);
+
     this.editorButton = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 210, "[ TRACK EDITOR ]", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 290, "[ TRACK EDITOR ]", {
         fontFamily: "monospace",
         fontSize: "28px",
         color: "#93c5fd",
