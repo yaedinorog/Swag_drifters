@@ -290,6 +290,8 @@ export class MultiplayerRaceScene extends Phaser.Scene {
           this.myCarState.position.y += dy * alpha;
           this.myCarState.velocity.x = Phaser.Math.Linear(this.myCarState.velocity.x, mine.vx, alpha);
           this.myCarState.velocity.y = Phaser.Math.Linear(this.myCarState.velocity.y, mine.vy, alpha);
+          const dAngle = Phaser.Math.Angle.Wrap(mine.heading - this.myCarState.heading);
+          this.myCarState.heading += dAngle * alpha;
         }
       }
     });

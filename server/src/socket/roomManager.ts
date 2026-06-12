@@ -134,6 +134,7 @@ export function resetForNextRound(room: Room): void {
     player.finishPosition = 0;
     player.lapNumber = 1;
     player.lapTracker = null;
+    player.lastInputSeq = -1;
   }
 }
 
