@@ -33,11 +33,19 @@ interface CarSnapshot {
   angularVelocity: number;
   lapNumber: number;
   finished: boolean;
+  lastInputSeq: number;
 }
 
 interface TimestampedSnapshot {
   time: number;
   cars: Map<string, CarSnapshot>;
+}
+
+interface BufferedInput {
+  seq: number;
+  input: InputState;
+  dt: number;
+  turboActive: boolean;
 }
 
 interface SceneData {
@@ -97,6 +105,9 @@ export class MultiplayerRaceScene extends Phaser.Scene {
   private driftMarkCooldownMs = 0;
   private clockOffset = 0;  // serverTime - clientTime, estimated at raceStart
 
+  private inputBuffer: BufferedInput[] = [];
+  private readonly INPUT_BUFFER_MAX = 120;
+
   constructor() {
     super("multiplayer_race");
   }
@@ -135,6 +146,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     this.turboExhausted = false;
     this.clockOffset = 0;
     this.snapshotBuffer = [];
+    this.inputBuffer = [];
     this.skidMarks = [];
     this.remoteCars.clear();
     this.playerLaps.clear();
@@ -262,12 +274,16 @@ export class MultiplayerRaceScene extends Phaser.Scene {
         const dy = mine.y - this.myCarState.position.y;
         const dist = Math.hypot(dx, dy);
         if (dist > RECONCILE_SNAP) {
-          this.myCarState.position.x = mine.x;
-          this.myCarState.position.y = mine.y;
-          this.myCarState.velocity.x = mine.vx;
-          this.myCarState.velocity.y = mine.vy;
-          this.myCarState.heading = mine.heading;
+          // Hard correction: apply server state then replay unconfirmed inputs
+          this.myCarState = {
+            position: { x: mine.x, y: mine.y },
+            velocity: { x: mine.vx, y: mine.vy },
+            heading: mine.heading,
+            angularVelocity: mine.angularVelocity,
+          };
+          this.replayInputsAfter(mine.lastInputSeq);
         } else if (dist > 5) {
+          // Soft correction: lerp toward server
           const alpha = Math.min(dist / RECONCILE_LERP_MAX, 1) * 0.15;
           this.myCarState.position.x += dx * alpha;
           this.myCarState.position.y += dy * alpha;
@@ -371,6 +387,8 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       handbrake: input.handbrake,
       turbo: this.turboActive,
     });
+    this.inputBuffer.push({ seq: this.inputSeq - 1, input: { ...input }, dt, turboActive: this.turboActive });
+    if (this.inputBuffer.length > this.INPUT_BUFFER_MAX) this.inputBuffer.shift();
 
     this.elapsedMs += deltaMs;
 
@@ -439,6 +457,15 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       );
       const dAngle = Phaser.Math.Angle.Wrap(b.heading - a.heading);
       sprite.rotation = a.heading + dAngle * t + CAR_HEADING_OFFSET;
+    }
+  }
+
+  private replayInputsAfter(lastConfirmedSeq: number): void {
+    const pending = this.inputBuffer.filter((b) => b.seq > lastConfirmedSeq);
+    for (const buffered of pending) {
+      const handling = getEffectiveHandling(DEFAULT_CAR, buffered.turboActive);
+      const result = stepDriftModel(this.myCarState, buffered.input, buffered.dt, handling, false);
+      this.myCarState = result.state;
     }
   }
 

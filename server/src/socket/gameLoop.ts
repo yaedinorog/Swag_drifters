@@ -100,6 +100,7 @@ export function startGameLoop(io: Server, room: Room, raceStartMs: number): void
         angularVelocity: p.carState.angularVelocity,
         lapNumber: p.lapNumber,
         finished: p.finished,
+        lastInputSeq: p.lastInputSeq,
       }));
       io.to(room.code).emit("snapshot", { seq: seq++, serverTime: now, cars });
     }
