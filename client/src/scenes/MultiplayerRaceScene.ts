@@ -95,6 +95,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
 
   private skidMarks: { sprite: Phaser.GameObjects.Image; createdAtMs: number }[] = [];
   private driftMarkCooldownMs = 0;
+  private clockOffset = 0;  // serverTime - clientTime, estimated at raceStart
 
   constructor() {
     super("multiplayer_race");
@@ -315,6 +316,11 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       this.players = this.players.filter((p) => p.id !== id);
       this.refreshPlayerList();
     });
+
+    socketClient.on("raceStart", (data: unknown) => {
+      const { serverTime } = data as { serverTime: number };
+      this.clockOffset = serverTime - Date.now();
+    });
   }
 
   update(_time: number, deltaMs: number): void {
@@ -394,7 +400,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
   }
 
   private interpolateRemoteCars(): void {
-    const renderTime = Date.now() - INTERP_DELAY_MS;
+    const renderTime = Date.now() + this.clockOffset - INTERP_DELAY_MS;
     if (this.snapshotBuffer.length < 2) return;
 
     for (const [id, sprite] of this.remoteCars) {
@@ -494,5 +500,6 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     socketClient.off("playerFinished");
     socketClient.off("raceEnd");
     socketClient.off("playerLeft");
+    socketClient.off("raceStart");
   }
 }
