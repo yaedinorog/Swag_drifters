@@ -133,6 +133,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     this.turboCharge = 0;
     this.turboActive = false;
     this.turboExhausted = false;
+    this.clockOffset = 0;
     this.snapshotBuffer = [];
     this.skidMarks = [];
     this.remoteCars.clear();
