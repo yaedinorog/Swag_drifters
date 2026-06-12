@@ -151,6 +151,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     this.remoteCars.clear();
     this.playerLaps.clear();
     this.playerFinished.clear();
+    this.inputSeq = 0;
 
     this.drawTrack();
     this.setupCars();

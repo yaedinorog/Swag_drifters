@@ -89,7 +89,9 @@ export function attachSocketIO(httpServer: HttpServer): Server {
       const player = room.players.get(socket.id);
       if (!player || player.finished) return;
 
-      player.lastInputSeq = typeof input.seq === "number" ? input.seq : player.lastInputSeq;
+      if (typeof input.seq === "number" && input.seq > player.lastInputSeq) {
+        player.lastInputSeq = input.seq;
+      }
       player.lastInput = {
         throttle: clamp01(input.throttle),
         brake: clamp01(input.brake),
