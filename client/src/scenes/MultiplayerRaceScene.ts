@@ -48,7 +48,8 @@ interface SceneData {
 }
 
 const INTERP_DELAY_MS = 100;
-const RECONCILE_THRESHOLD = 60;
+const RECONCILE_LERP_MAX = 120;  // up to 120px — smooth lerp
+const RECONCILE_SNAP = 300;      // >300px — instant snap
 const CAR_HEADING_OFFSET = -Math.PI / 2;
 const ROAD_BORDER_PX = 10;
 
@@ -257,12 +258,19 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       if (mine && !this.myFinished) {
         const dx = mine.x - this.myCarState.position.x;
         const dy = mine.y - this.myCarState.position.y;
-        if (Math.hypot(dx, dy) > RECONCILE_THRESHOLD) {
+        const dist = Math.hypot(dx, dy);
+        if (dist > RECONCILE_SNAP) {
           this.myCarState.position.x = mine.x;
           this.myCarState.position.y = mine.y;
           this.myCarState.velocity.x = mine.vx;
           this.myCarState.velocity.y = mine.vy;
           this.myCarState.heading = mine.heading;
+        } else if (dist > 5) {
+          const alpha = Math.min(dist / RECONCILE_LERP_MAX, 1) * 0.15;
+          this.myCarState.position.x += dx * alpha;
+          this.myCarState.position.y += dy * alpha;
+          this.myCarState.velocity.x = Phaser.Math.Linear(this.myCarState.velocity.x, mine.vx, alpha);
+          this.myCarState.velocity.y = Phaser.Math.Linear(this.myCarState.velocity.y, mine.vy, alpha);
         }
       }
     });
