@@ -1,14 +1,14 @@
 import type { Server } from "socket.io";
 import { DEFAULT_HANDLING, TURBO_HANDLING } from "../physics/carHandling.js";
 import { stepDriftModel } from "../physics/driftModel.js";
-import { isOnTrack } from "../track/geometry.js";
+import { isOnTrackFromGeometry } from "../track/geometry.js";
 import { LapTracker } from "../track/lapTracker.js";
 import { resolveCollisions } from "./collision.js";
 import type { Room } from "./roomManager.js";
 
 const TICK_HZ = 60;
 const TICK_MS = 1000 / TICK_HZ;
-const SNAPSHOT_EVERY = 3;
+const SNAPSHOT_EVERY = 2;
 const TOTAL_LAPS = 3;
 
 const activeLoops = new Map<string, ReturnType<typeof setInterval>>();
@@ -44,7 +44,7 @@ export function startGameLoop(io: Server, room: Room, raceStartMs: number): void
       };
       const handling = inp.turbo ? TURBO_HANDLING : DEFAULT_HANDLING;
       const prevPos = { ...player.carState.position };
-      const offTrack = !isOnTrack(player.carState.position.x, player.carState.position.y, room.track!);
+      const offTrack = !isOnTrackFromGeometry(player.carState.position.x, player.carState.position.y, room.trackGeometry!);
 
       player.carState = stepDriftModel(player.carState, input, DT, handling, offTrack);
 

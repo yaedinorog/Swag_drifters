@@ -1,6 +1,7 @@
 import type { CarState } from "../physics/types.js";
 import type { LapTracker } from "../track/lapTracker.js";
-import type { TrackAssetV1 } from "../track/types.js";
+import { buildTrackGeometry } from "../track/geometry.js";
+import type { TrackAssetV1, TrackGeometry } from "../track/types.js";
 
 export type RoomPhase = "lobby" | "countdown" | "racing" | "results";
 
@@ -33,6 +34,7 @@ export interface Room {
   hostId: string;
   trackId: string;
   track: TrackAssetV1 | null;
+  trackGeometry: TrackGeometry | null;
   finishCount: number;
 }
 
@@ -68,6 +70,7 @@ export function getOrCreateRoom(code: string): Room {
       hostId: "",
       trackId: "track_01",
       track: null,
+      trackGeometry: null,
       finishCount: 0,
     });
   }
@@ -114,6 +117,10 @@ export function removePlayer(room: Room, socketId: string): void {
 }
 
 export function assignSpawns(room: Room): Record<string, { x: number; y: number; heading: number }> {
+  // Build geometry once per race so the game loop has an identical isOnTrack
+  // implementation to the client (both use the same splined quad polygons).
+  room.trackGeometry = buildTrackGeometry(room.track!);
+
   const result: Record<string, { x: number; y: number; heading: number }> = {};
   let index = 0;
   for (const [id, player] of room.players) {

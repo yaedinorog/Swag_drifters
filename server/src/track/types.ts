@@ -15,6 +15,16 @@ export interface TrackAssetV1 {
   checkpoints: TrackCheckpoint[];
 }
 
+export type Quad = [Vector2, Vector2, Vector2, Vector2];
+
+export interface TrackGeometry {
+  sampledCenterline: Vector2[];
+  quads: Quad[];
+  leftEdge: Vector2[];
+  rightEdge: Vector2[];
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+}
+
 export interface TrackManifestItem {
   id: string;
   name: string;

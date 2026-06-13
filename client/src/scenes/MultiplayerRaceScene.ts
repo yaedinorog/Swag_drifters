@@ -55,7 +55,7 @@ interface SceneData {
   players: PlayerInfo[];
 }
 
-const INTERP_DELAY_MS = 100;
+const INTERP_DELAY_MS = 60;
 const RECONCILE_LERP_MAX = 120;  // up to 120px — smooth lerp
 const RECONCILE_SNAP = 300;      // >300px — instant snap
 const CAR_HEADING_OFFSET = -Math.PI / 2;
@@ -447,10 +447,13 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       }
 
       if (!prev || !next) {
-        const latest = this.snapshotBuffer[this.snapshotBuffer.length - 1].cars.get(id);
+        const latestSnap = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+        const latest = latestSnap?.cars.get(id);
         if (latest) {
-          sprite.setPosition(latest.x, latest.y);
-          sprite.rotation = latest.heading + CAR_HEADING_OFFSET;
+          // Extrapolate from last known state using velocity (capped at 200ms)
+          const ageSec = Math.min((renderTime - latestSnap.time) / 1000, 0.2);
+          sprite.setPosition(latest.x + latest.vx * ageSec, latest.y + latest.vy * ageSec);
+          sprite.rotation = latest.heading + latest.angularVelocity * ageSec + CAR_HEADING_OFFSET;
         }
         continue;
       }
