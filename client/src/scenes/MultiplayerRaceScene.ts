@@ -12,7 +12,7 @@ import {
 import { DEFAULT_CAR, getEffectiveHandling } from "../core/physics/carHandling";
 import { stepDriftModel } from "../core/physics/driftModel";
 import { buildTrackGeometry } from "../core/track/geometry";
-import { getTrackById } from "../core/track/trackStore";
+import { getTrackById, isOnTrack } from "../core/track/trackStore";
 import type { RuntimeTrack } from "../core/track/types";
 import type { CarState, InputState } from "../core/types";
 import { socketClient } from "../services/socket/socketClient";
@@ -107,6 +107,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
 
   private inputBuffer: BufferedInput[] = [];
   private readonly INPUT_BUFFER_MAX = 120;
+  private spawnPositions: Record<string, { x: number; y: number; heading: number }> = {};
 
   constructor() {
     super("multiplayer_race");
@@ -124,7 +125,8 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     if (!trackAsset) throw new Error(`Track not found: ${data.trackId}`);
     this.activeTrack = trackAsset;
 
-    const spawn = data.spawnPositions[this.myId] ?? trackAsset.asset.spawn;
+    this.spawnPositions = data.spawnPositions ?? {};
+    const spawn = this.spawnPositions[this.myId] ?? trackAsset.asset.spawn;
     this.myCarState = {
       position: { x: spawn.x, y: spawn.y },
       velocity: { x: 0, y: 0 },
@@ -170,11 +172,13 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     // Remote cars first (behind own)
     for (const p of this.players) {
       if (p.id === this.myId) continue;
-      const sprite = this.add.sprite(0, 0, "car");
+      const spawn = this.spawnPositions[p.id];
+      const sprite = this.add.sprite(spawn?.x ?? 0, spawn?.y ?? 0, "car");
       sprite.setDisplaySize(36, 50);
       sprite.setDepth(9);
       sprite.setAlpha(0.85);
       sprite.setTint(0xff9944);
+      if (spawn) sprite.rotation = spawn.heading + CAR_HEADING_OFFSET;
       this.uiCamera.ignore(sprite);
       this.remoteCars.set(p.id, sprite);
       this.playerLaps.set(p.id, 1);
@@ -185,6 +189,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     this.myCar = this.add.sprite(this.myCarState.position.x, this.myCarState.position.y, "car");
     this.myCar.setDisplaySize(36, 50);
     this.myCar.setDepth(10);
+    this.myCar.rotation = this.myCarState.heading + CAR_HEADING_OFFSET;
     this.uiCamera.ignore(this.myCar);
   }
 
@@ -376,8 +381,9 @@ export class MultiplayerRaceScene extends Phaser.Scene {
       }
     }
 
+    const onTrack = isOnTrack(this.myCarState.position.x, this.myCarState.position.y, this.activeTrack);
     const handling = getEffectiveHandling(DEFAULT_CAR, this.turboActive);
-    const step = stepDriftModel(this.myCarState, input, dt, handling, false);
+    const step = stepDriftModel(this.myCarState, input, dt, handling, !onTrack);
     this.myCarState = step.state;
     this.isDrifting = step.isDrifting;
 
@@ -466,8 +472,9 @@ export class MultiplayerRaceScene extends Phaser.Scene {
   private replayInputsAfter(lastConfirmedSeq: number): void {
     const pending = this.inputBuffer.filter((b) => b.seq > lastConfirmedSeq);
     for (const buffered of pending) {
+      const onTrack = isOnTrack(this.myCarState.position.x, this.myCarState.position.y, this.activeTrack);
       const handling = getEffectiveHandling(DEFAULT_CAR, buffered.turboActive);
-      const result = stepDriftModel(this.myCarState, buffered.input, buffered.dt, handling, false);
+      const result = stepDriftModel(this.myCarState, buffered.input, buffered.dt, handling, !onTrack);
       this.myCarState = result.state;
     }
   }
@@ -509,7 +516,7 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     const nowMs = this.time.now;
     this.skidMarks = this.skidMarks.filter((m) => {
       if (nowMs - m.createdAtMs > 4500) { m.sprite.destroy(); return false; }
-      m.sprite.setAlpha(Math.max(0, 1 - (nowMs - m.createdAtMs) / 4500));
+      m.sprite.setAlpha(Math.max(0, 1 - (nowMs - m.createdAtMs) / 4500) * 0.45);
       return true;
     });
 
@@ -517,12 +524,23 @@ export class MultiplayerRaceScene extends Phaser.Scene {
     if (!isDrifting || this.driftMarkCooldownMs > 0) return;
     this.driftMarkCooldownMs = 45;
 
-    const mark = this.add.image(this.myCarState.position.x, this.myCarState.position.y, "skid_mark");
-    mark.setRotation(this.myCarState.heading);
-    mark.setAlpha(0.6);
-    mark.setDepth(1);
-    this.uiCamera.ignore(mark);
-    this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
+    const fwdX = Math.cos(this.myCarState.heading);
+    const fwdY = Math.sin(this.myCarState.heading);
+    const leftX  = this.myCarState.position.x - fwdX * 10 - fwdY * 6;
+    const leftY  = this.myCarState.position.y - fwdY * 10 + fwdX * 6;
+    const rightX = this.myCarState.position.x - fwdX * 10 + fwdY * 6;
+    const rightY = this.myCarState.position.y - fwdY * 10 - fwdX * 6;
+
+    for (const [x, y] of [[leftX, leftY], [rightX, rightY]] as [number, number][]) {
+      const mark = this.add.image(x, y, "tire")
+        .setRotation(this.myCarState.heading)
+        .setScale(2)
+        .setAlpha(0.45)
+        .setDepth(1)
+        .setTint(0x1f1f1f);
+      this.uiCamera.ignore(mark);
+      this.skidMarks.push({ sprite: mark, createdAtMs: nowMs });
+    }
   }
 
   private cleanup(): void {

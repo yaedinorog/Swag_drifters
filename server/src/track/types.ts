@@ -9,6 +9,8 @@ export interface TrackCheckpoint {
 export interface TrackAssetV1 {
   id: string;
   name: string;
+  centerline: Vector2[];
+  roadWidth: number;
   spawn: { x: number; y: number; heading: number };
   checkpoints: TrackCheckpoint[];
 }
